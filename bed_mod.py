@@ -104,6 +104,39 @@ class BED3D(dict):
                         pass
         return newdata
 
+    def makeMirrorModel(self, mode):
+        # entry
+        if mode==0:   # center mirror (use left)
+            return self.delHalf(0).makeMirror(0)
+        elif mode==1: # center mirror (use right)
+            return self.delHalf(1).makeMirror(1)
+        else:         # whole mirror (make other one)
+            return self.makeMirror(0)
+
+    def delHalf(self, lr):
+        self.updatePosMaxMin()
+        center = (self.xmax - self.xmin)//2 + self.xmin
+        newdata = BED3D()
+        if lr == 0: # delete right
+            for (x,y,z), v in self.items():
+                if x <= center:
+                    newdata[(x,y,z)] = v
+        else:
+            for (x,y,z), v in self.items():
+                if x > center:
+                    newdata[(x,y,z)] = v
+        return newdata
+
+    def makeMirror(self, lr):
+        self.updatePosMaxMin()
+        center = self.xmax if lr==0 else self.xmin
+        newdata = BED3D()
+        for (x,y,z), v in self.items():
+            newdata[(x,y,z)] = v
+            diff = x-center
+            newx = center-diff+1 if lr==0 else center-diff-1
+            newdata[(newx,y,z)] = v.genModPos(newx,y,z)
+        return newdata
 
 class BED(object):
     def __init__(self, line):
@@ -118,6 +151,14 @@ class BED(object):
 
     def __repr__(self):
         return self.line
+
+    def genModPos(self,x,y,z):
+        newbed = BED(self.line)
+        newbed.x = x
+        newbed.y = y
+        newbed.z = z
+        newbed.line = "%d,%d,%d %s %d" % (x,y,z, self.color, self.alpha)
+        return newbed
 
 #    def is_top_of(self, other):
 #        return self.y == other.y-1
@@ -163,22 +204,27 @@ def getopt():
                       dest="level",
                       help="specify level for hollowing mode: should be greater than or equal to 0",
                       metavar="LEVEL")
+    parser.add_option("-r", "--mirrormode",
+                      dest="mirrormode",
+                      help="specify mirrormode 0: use left half, 1: use right half, 2: make other one",
+                      metavar="LEVEL")
     (options, args) = parser.parse_args() #引数パーズ
 
     infile  = options.inputfile  if options.inputfile else None
     outfile = options.outputfile if options.outputfile else None
     mode    = int(options.mode)  if options.mode else 0
     level   = int(options.level) if options.level else 1
+    mirrormode = int(options.mirrormode) if options.mirrormode else 0
 
     if infile == None: 
         parser.print_help()
         exit()
     else:
-        return (infile, outfile, mode, level)
+        return (infile, outfile, mode, level, mirrormode)
 
 
 if __name__ == "__main__":
-    filename, outname, mode, level = getopt()
+    filename, outname, mode, level, mirrormode = getopt()
 
     bed3D = bed_read(filename)
 
@@ -189,6 +235,9 @@ if __name__ == "__main__":
     elif mode == 1: # fill mode
         filled = bed3D.fillClosed()
         outstr = filled.printAll()
+    elif mode== 2: # mirror mode
+        newmodel = bed3D.makeMirrorModel(mirrormode)
+        outstr = newmodel.printAll()
 
     if outname: 
         with open(outname, "wt") as of:
