@@ -5,11 +5,16 @@ date    : 2014/5/5
 @aki426 による3Dモデリングソフト be! のセーブファイル（.bed）を読み込み、
 モデルを中空にするスクリプトです。
 
-python ./bed_mod.py [filename.bed] [level] > [outfilename.bed]
+python ./bed_mod.py -i [filename.bed] -o [outname.bed] -m [mode] -l [level]
 
 [filename.bed]: 入力ファイル名。これはbe!で作ってね
+[outname.bed] : 出力ファイル名
+[mode]        : 処理モード 0 or 1
+                0 中空モード（hollow）
+                1 埋めモード（fill）
+                デフォルト値は 0
 [level]       : 中空にするレベル。0以上の値にしてください。
-                0だと何も消えません（実は意図していなかったんですが）。
+                0だと何も消えません。
                 1だと線接触
                 2以上で面接触
 
@@ -18,8 +23,8 @@ python ./bed_mod.py [filename.bed] [level] > [outfilename.bed]
                 判定対象ボクセルを取り囲むボクセルが
                 X/Y/Zの３軸すべてでlevel個以上いれば削除
                 となります。
-                （だから0指定なら全部消えるはずだけど、
-                  プログラムをミスったので残ります）
+                （このアルゴリズム通りなら0指定なら全部消えるけど、
+                  無意味になるので、例外的に消えないモードとしました）
                 やっつけ仕事なので、アルゴリズムの良し悪しは
                 不問にしていただけると助かります。
                 デフォルト値は１

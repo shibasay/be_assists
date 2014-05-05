@@ -2,15 +2,23 @@
 #author  : @shibasay 
 #date    : 2014/5/5
 
+from optparse import OptionParser
+
 header=r"""#be! data file
 #(int)x (int)y (int)z (int)r (int)g (int)b (int)a
 #delimiters are space' ', tab'\t', camma',' and colon':'."""
 
+FILLBOXEL="%d,%d,%d 0,0,0 255"
+FILLCOLOR="0,0,0"
+FILLALPHA="255"
+
 class BED3D(dict):
     def printAll(self):
-        print header
-        for item in self.values():
-            print item
+        outlist = []
+        outlist.append(header)
+        for v in self.values():
+            outlist.append(v.line)
+        return "\n".join(outlist)
 
 #    def getListXis(self, xpos):
 #        return [v for (x,y,z), v in self.items() if x==xpos]
@@ -37,18 +45,21 @@ class BED3D(dict):
 
     def checkClosedX(self,x,y,z,  level):
         xlist = self.getListYZis(y,z)
-        xlist_x = sorted([e.x for e in xlist])
-        xclosed = xlist_x and len(xlist_x) >= level*2+1 and xlist_x[level-1] < x and xlist_x[-level] > x
+        xlist_smaller = sorted([e.x for e in xlist if e.x < x])
+        xlist_larger  = sorted([e.x for e in xlist if e.x > x])
+        xclosed = len(xlist_smaller) >= level and len(xlist_larger) >= level
         return xclosed
     def checkClosedY(self,x,y,z, level):
         ylist = self.getListZXis(z,x)
-        ylist_y = sorted([e.y for e in ylist])
-        yclosed = ylist_y and len(ylist_y) >= level*2+1 and ylist_y[level-1] < y and ylist_y[-level] > y
+        ylist_smaller = sorted([e.y for e in ylist if e.y < y])
+        ylist_larger  = sorted([e.y for e in ylist if e.y > y])
+        yclosed = len(ylist_smaller) >= level and len(ylist_larger) >= level
         return yclosed
     def checkClosedZ(self,x,y,z, level):
         zlist = self.getListXYis(x,y)
-        zlist_z = sorted([e.z for e in zlist])
-        zclosed = zlist_z and len(zlist_z) >= level*2+1 and zlist_z[level-1] < z and zlist_z[-level] > z
+        zlist_smaller = sorted([e.z for e in zlist if e.z < z])
+        zlist_larger  = sorted([e.z for e in zlist if e.z > z])
+        zclosed = len(zlist_smaller) >= level and len(zlist_larger) >= level
         return zclosed
     def checkClosedPos(self,x,y,z, level):
         allclosed = self.checkClosedX(x,y,z, level) and self.checkClosedY(x,y,z, level) and self.checkClosedZ(x,y,z, level)
@@ -57,9 +68,39 @@ class BED3D(dict):
     def delClosed(self, level):
         newdata = BED3D()
         for (x,y,z), v in self.items():
-            if not self.checkClosedPos(x,y,z, level):
+            if level == 0 or (not self.checkClosedPos(x,y,z, level)):
                 newdata[(x,y,z)] = v
         return newdata
+
+    def updatePosMaxMin(self):
+        xlist = [x for x,y,z in self.keys()]
+        ylist = [y for x,y,z in self.keys()]
+        zlist = [z for x,y,z in self.keys()]
+        self.xmax = max(xlist)
+        self.xmin = min(xlist)
+        self.ymax = max(ylist)
+        self.ymin = min(ylist)
+        self.zmax = max(zlist)
+        self.zmin = min(zlist)
+
+    def fillClosed(self):
+        self.updatePosMaxMin()
+        newdata = BED3D()
+        for x in range(self.xmin, self.xmax+1):
+            for y in range(self.ymin, self.ymax+1):
+                for z in range(self.zmin, self.zmax+1):
+                    print "check (%d, %d, %d)" % (x,y,z), 
+                    v = self.get((x,y,z), None)
+                    if v: 
+                        newdata[(x,y,z)] = v
+                        print "exist original data" 
+                    elif self.checkClosedPos(x,y,z, 1):
+                        newdata[(x,y,z)] = BED(x,y,z, FILLCOLOR, FILLALPHA, FILLBOXEL % (x,y,z))
+                        print "fill!" 
+                    else:
+                        print "do nothing..."
+        return newdata
+
 
 class BED(object):
     def __init__(self, x, y, z, color, alpha, line):
@@ -100,15 +141,54 @@ def bed_read(bedfilename):
                 bed3D[postuple] = b
     return bed3D
 
+def getopt():
+    version = '%prog 0.1'
+    parser = OptionParser(usage=None, version=version) # usageの %prog はOptionParserによってos.path.basename(sys.argv[0])に置換えられる
+    parser.add_option("-i", "--input",
+                      dest="inputfile",
+                      help="specify input file name",
+                      metavar="INPUT")
+    parser.add_option("-o", "--output",
+                      dest="outputfile",
+                      help="specify output file name",
+                      metavar="OUTPUT")
+    parser.add_option("-m", "--mode",
+                      dest="mode",
+                      help="specify processing mode: 0(hollow) or 1(fill)",
+                      metavar="MODE")
+    parser.add_option("-l", "--level",
+                      dest="level",
+                      help="specify level for hollowing mode: should be greater than or equal to 0",
+                      metavar="LEVEL")
+    (options, args) = parser.parse_args() #引数パーズ
+
+    infile  = options.inputfile  if options.inputfile else "input.log"
+    outfile = options.outputfile if options.outputfile else None
+    mode    = int(options.mode)  if options.mode else 0
+    level   = int(options.level) if options.level else 1
+
+    return (infile, outfile, mode, level)
+
+
 if __name__ == "__main__":
-    import sys
-    filename = sys.argv[1]
-    contactlevel = 1
-    if len(sys.argv) > 2: 
-        contactlevel = int(sys.argv[2])
+#    import sys
+#    filename = sys.argv[1]
+#    contactlevel = 1
+#    if len(sys.argv) > 2: 
+#        contactlevel = int(sys.argv[2])
+
+    filename, outname, mode, level = getopt()
 
     bed3D = bed_read(filename)
 
-    pruned = bed3D.delClosed(contactlevel)
-    pruned.printAll()
+    outstr = None
+    if mode == 0: # hollow mode
+        pruned = bed3D.delClosed(level)
+        outstr = pruned.printAll()
+    elif mode == 1: # fill mode
+        filled = bed3D.fillClosed()
+        outstr = filled.printAll()
+
+    with open(outname, "wt") as of:
+        of.write(outstr)
 
