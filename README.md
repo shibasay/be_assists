@@ -5,7 +5,7 @@ date    : 2014/5/5
 @aki426 による3Dモデリングソフト be! のセーブファイル（.bed）を読み込み、
 モデルを中空にするスクリプトです。
 
-python ./bed_read.py [filename.bed] [level] > [outfilename.bed]
+python ./bed_mod.py [filename.bed] [level] > [outfilename.bed]
 
 [filename.bed]: 入力ファイル名。これはbe!で作ってね
 [level]       : 中空にするレベル。0以上の値にしてください。
