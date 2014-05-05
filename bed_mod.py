@@ -8,9 +8,10 @@ header=r"""#be! data file
 #(int)x (int)y (int)z (int)r (int)g (int)b (int)a
 #delimiters are space' ', tab'\t', camma',' and colon':'."""
 
-FILLBOXEL="%d,%d,%d 0,0,0 255"
-FILLCOLOR="0,0,0"
-FILLALPHA="255"
+FILL_R=255
+FILL_G=255
+FILL_B=255
+FILL_A=255
 
 class BED3D(dict):
     def printAll(self):
@@ -89,21 +90,25 @@ class BED3D(dict):
         for x in range(self.xmin, self.xmax+1):
             for y in range(self.ymin, self.ymax+1):
                 for z in range(self.zmin, self.zmax+1):
-                    print "check (%d, %d, %d)" % (x,y,z), 
+                    #print "check (%d, %d, %d)" % (x,y,z), 
                     v = self.get((x,y,z), None)
                     if v: 
                         newdata[(x,y,z)] = v
-                        print "exist original data" 
+                        #print "exist original data" 
                     elif self.checkClosedPos(x,y,z, 1):
-                        newdata[(x,y,z)] = BED(x,y,z, FILLCOLOR, FILLALPHA, FILLBOXEL % (x,y,z))
-                        print "fill!" 
+                        fillboxel = "%d,%d,%d %d,%d,%d %d" % (x,y,z, FILL_R, FILL_G, FILL_B, FILL_A)
+                        newdata[(x,y,z)] = BED(fillboxel)
+                        #print "fill!" 
                     else:
-                        print "do nothing..."
+                        #print "do nothing..."
+                        pass
         return newdata
 
 
 class BED(object):
-    def __init__(self, x, y, z, color, alpha, line):
+    def __init__(self, line):
+        pos, color, alpha = line.split(" ")
+        x,y,z = pos.split(",")
         self.x = int(x)
         self.y = int(y)
         self.z = int(z)
@@ -134,10 +139,8 @@ def bed_read(bedfilename):
     with open(bedfilename) as f:
         for line in f:
             if line[0] != '#':
-                pos, color, alpha = line.split(" ")
-                x,y,z = pos.split(",")
-                b = BED(x,y,z, color, alpha, line.strip())
-                postuple = (int(x), int(y), int(z))
+                b = BED(line.strip())
+                postuple = (b.x, b.y, b.z)
                 bed3D[postuple] = b
     return bed3D
 
@@ -162,21 +165,19 @@ def getopt():
                       metavar="LEVEL")
     (options, args) = parser.parse_args() #引数パーズ
 
-    infile  = options.inputfile  if options.inputfile else "input.log"
+    infile  = options.inputfile  if options.inputfile else None
     outfile = options.outputfile if options.outputfile else None
     mode    = int(options.mode)  if options.mode else 0
     level   = int(options.level) if options.level else 1
 
-    return (infile, outfile, mode, level)
+    if infile == None: 
+        parser.print_help()
+        exit()
+    else:
+        return (infile, outfile, mode, level)
 
 
 if __name__ == "__main__":
-#    import sys
-#    filename = sys.argv[1]
-#    contactlevel = 1
-#    if len(sys.argv) > 2: 
-#        contactlevel = int(sys.argv[2])
-
     filename, outname, mode, level = getopt()
 
     bed3D = bed_read(filename)
@@ -189,6 +190,10 @@ if __name__ == "__main__":
         filled = bed3D.fillClosed()
         outstr = filled.printAll()
 
-    with open(outname, "wt") as of:
-        of.write(outstr)
+    if outname: 
+        with open(outname, "wt") as of:
+            of.write(outstr)
+    else:
+        import sys
+        sys.stdout.write(outstr)
 
