@@ -121,7 +121,7 @@ class BED3D(dict):
         offset = width & 1
         center = width//2 + offset - 1 + self.xmin
         newdata = BED3D()
-        print "@delHalf: width = %d, offset = %d, center = %d, xmin = %d, xmax = %d" % (width, offset, center, self.xmin, self.xmax)
+        #print "@delHalf: width = %d, offset = %d, center = %d, xmin = %d, xmax = %d" % (width, offset, center, self.xmin, self.xmax)
         if lr == 0: # delete right
             for (x,y,z), v in self.items():
                 if x <= center:
@@ -138,7 +138,7 @@ class BED3D(dict):
         width = self.xmax - self.xmin + 1
         offset = 1 - oddflag
         newdata = BED3D()
-        print "@makeMirror: width = %d, oddflag = %d, xmin = %d, xmax = %d" % (width, oddflag, self.xmin, self.xmax)
+        #print "@makeMirror: width = %d, oddflag = %d, xmin = %d, xmax = %d" % (width, oddflag, self.xmin, self.xmax)
         for (x,y,z), v in self.items():
             newdata[(x,y,z)] = v
             diff = x-center
