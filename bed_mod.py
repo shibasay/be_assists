@@ -44,32 +44,47 @@ class BED3D(dict):
 #        back = self.get((x,y,z-1), NONE)
 #        return top,bot,lef,rig,fore,back
 
-    def checkClosedX(self,x,y,z,  level):
+    def checkClosed_base(self, value, level, check_strong, smaller_list, larger_list):
+        def fand(x,y): return (x and y)
+        closed_weak = len(smaller_list) >= level and len(larger_list) >= level
+        smaller_adj_exist = True
+        larger_adj_exist = True
+        if check_strong and closed_weak:
+            smaller_adj_exist = reduce(fand, [smaller_list[-i] == value-i for i in range(1, level+1)], True)
+            larger_adj_exist = reduce(fand, [larger_list[i-1] == value+i for i in range(1, level+1)], True)
+        closed = closed_weak and smaller_adj_exist and larger_adj_exist
+        return closed
+    def checkClosedX(self,x,y,z,  level, check_strong):
         xlist = self.getListYZis(y,z)
         xlist_smaller = sorted([e.x for e in xlist if e.x < x])
         xlist_larger  = sorted([e.x for e in xlist if e.x > x])
-        xclosed = len(xlist_smaller) >= level and len(xlist_larger) >= level
-        return xclosed
-    def checkClosedY(self,x,y,z, level):
+        return self.checkClosed_base(x, level, check_strong, xlist_smaller, xlist_larger)
+    def checkClosedY(self,x,y,z, level, check_strong):
         ylist = self.getListZXis(z,x)
         ylist_smaller = sorted([e.y for e in ylist if e.y < y])
         ylist_larger  = sorted([e.y for e in ylist if e.y > y])
-        yclosed = len(ylist_smaller) >= level and len(ylist_larger) >= level
-        return yclosed
-    def checkClosedZ(self,x,y,z, level):
+        return self.checkClosed_base(y, level, check_strong, ylist_smaller, ylist_larger)
+    def checkClosedZ(self,x,y,z, level, check_strong):
         zlist = self.getListXYis(x,y)
         zlist_smaller = sorted([e.z for e in zlist if e.z < z])
         zlist_larger  = sorted([e.z for e in zlist if e.z > z])
-        zclosed = len(zlist_smaller) >= level and len(zlist_larger) >= level
-        return zclosed
-    def checkClosedPos(self,x,y,z, level):
-        allclosed = self.checkClosedX(x,y,z, level) and self.checkClosedY(x,y,z, level) and self.checkClosedZ(x,y,z, level)
+        return self.checkClosed_base(z, level, check_strong, zlist_smaller, zlist_larger)
+    def checkClosedPos(self,x,y,z, level, check_strong):
+        allclosed = (self.checkClosedX(x,y,z, level, check_strong) and
+                     self.checkClosedY(x,y,z, level, check_strong) and
+                     self.checkClosedZ(x,y,z, level, check_strong))
         return allclosed
 
+    def setDelFlag(self, level):
+        for (x,y,z), v in self.items():
+            if level > 0 and self.checkClosedPos(x,y,z, level, True):
+                v.delflag = True
+
     def delClosed(self, level):
+        self.setDelFlag(level)
         newdata = BED3D()
         for (x,y,z), v in self.items():
-            if level == 0 or (not self.checkClosedPos(x,y,z, level)):
+            if v.delflag == False:
                 newdata[(x,y,z)] = v
         return newdata
 
@@ -95,7 +110,7 @@ class BED3D(dict):
                     if v: 
                         newdata[(x,y,z)] = v
                         #print "exist original data" 
-                    elif self.checkClosedPos(x,y,z, 1):
+                    elif self.checkClosedPos(x,y,z, 1, False):
                         fillboxel = "%d,%d,%d %d,%d,%d %d" % (x,y,z, FILL_R, FILL_G, FILL_B, FILL_A)
                         newdata[(x,y,z)] = BED(fillboxel)
                         #print "fill!" 
@@ -147,16 +162,20 @@ class BED3D(dict):
                 newdata[(newx,y,z)] = v.genModPos(newx,y,z)
         return newdata
 
+import re
 class BED(object):
     def __init__(self, line):
-        pos, color, alpha = line.split(" ")
-        x,y,z = pos.split(",")
+        x,y,z, r,g,b, alpha = re.split(r"[ ,;\t]", line)
         self.x = int(x)
         self.y = int(y)
         self.z = int(z)
-        self.color = color
+        #self.color = color
+        self.r = int(r)
+        self.g = int(g)
+        self.b = int(b)
         self.alpha = int(alpha)
         self.line = line # original data
+        self.delflag = False
 
     def __repr__(self):
         return self.line
@@ -166,7 +185,7 @@ class BED(object):
         newbed.x = x
         newbed.y = y
         newbed.z = z
-        newbed.line = "%d,%d,%d %s %d" % (x,y,z, self.color, self.alpha)
+        newbed.line = "%d %d %d %d %d %d %d" % (x,y,z, self.r, self.g, self.b, self.alpha)
         return newbed
 
 #    def is_top_of(self, other):
