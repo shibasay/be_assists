@@ -107,35 +107,44 @@ class BED3D(dict):
     def makeMirrorModel(self, mode):
         # entry
         if mode==0:   # center mirror (use left)
-            return self.delHalf(0).makeMirror(0)
+            newmodel, oddflag = self.delHalf(0)
+            return newmodel.makeMirror(0, oddflag)
         elif mode==1: # center mirror (use right)
-            return self.delHalf(1).makeMirror(1)
+            newmodel, oddflag = self.delHalf(1)
+            return newmodel.makeMirror(1, oddflag)
         else:         # whole mirror (make other one)
-            return self.makeMirror(0)
+            return self.makeMirror(0, 0)
 
     def delHalf(self, lr):
         self.updatePosMaxMin()
-        center = (self.xmax - self.xmin)//2 + self.xmin
+        width = self.xmax - self.xmin + 1
+        offset = width & 1
+        center = width//2 + offset - 1 + self.xmin
         newdata = BED3D()
+        print "@delHalf: width = %d, offset = %d, center = %d, xmin = %d, xmax = %d" % (width, offset, center, self.xmin, self.xmax)
         if lr == 0: # delete right
             for (x,y,z), v in self.items():
                 if x <= center:
                     newdata[(x,y,z)] = v
         else:
             for (x,y,z), v in self.items():
-                if x > center:
+                if x > center-offset:
                     newdata[(x,y,z)] = v
-        return newdata
+        return newdata, offset
 
-    def makeMirror(self, lr):
+    def makeMirror(self, lr, oddflag):
         self.updatePosMaxMin()
         center = self.xmax if lr==0 else self.xmin
+        width = self.xmax - self.xmin + 1
+        offset = 1 - oddflag
         newdata = BED3D()
+        print "@makeMirror: width = %d, oddflag = %d, xmin = %d, xmax = %d" % (width, oddflag, self.xmin, self.xmax)
         for (x,y,z), v in self.items():
             newdata[(x,y,z)] = v
             diff = x-center
-            newx = center-diff+1 if lr==0 else center-diff-1
-            newdata[(newx,y,z)] = v.genModPos(newx,y,z)
+            newx = center-diff+offset if lr==0 else center-diff-offset
+            if newx != x:
+                newdata[(newx,y,z)] = v.genModPos(newx,y,z)
         return newdata
 
 class BED(object):
