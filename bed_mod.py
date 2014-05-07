@@ -36,14 +36,26 @@ class BED3D(dict):
         return [v for (x,y,z), v in self.items() if z==zpos and x==xpos]
 
 #    def getSurrounds(self, x,y,z): 
-#        top = self.get((x,y,z), NONE)
-#        bot = self.get((x,y,z), NONE)
-#        lef = self.get((x+1,y,z), NONE)
-#        rig = self.get((x-1,y,z), NONE)
-#        fore = self.get((x,y,z+1), NONE)
-#        back = self.get((x,y,z-1), NONE)
+#        top = self.get((x,y,z), None)
+#        bot = self.get((x,y,z), None)
+#        lef = self.get((x+1,y,z), None)
+#        rig = self.get((x-1,y,z), None)
+#        fore = self.get((x,y,z+1), None)
+#        back = self.get((x,y,z-1), None)
 #        return top,bot,lef,rig,fore,back
 
+    def updatePosMaxMin(self):
+        xlist = [x for x,y,z in self.keys()]
+        ylist = [y for x,y,z in self.keys()]
+        zlist = [z for x,y,z in self.keys()]
+        self.xmax = max(xlist)
+        self.xmin = min(xlist)
+        self.ymax = max(ylist)
+        self.ymin = min(ylist)
+        self.zmax = max(zlist)
+        self.zmin = min(zlist)
+
+    #============= adjucent existence based delete decision ==========#
     def checkClosed_base(self, value, level, check_strong, smaller_list, larger_list):
         def fand(x,y): return (x and y)
         closed_weak = len(smaller_list) >= level and len(larger_list) >= level
@@ -88,17 +100,6 @@ class BED3D(dict):
                 newdata[(x,y,z)] = v
         return newdata
 
-    def updatePosMaxMin(self):
-        xlist = [x for x,y,z in self.keys()]
-        ylist = [y for x,y,z in self.keys()]
-        zlist = [z for x,y,z in self.keys()]
-        self.xmax = max(xlist)
-        self.xmin = min(xlist)
-        self.ymax = max(ylist)
-        self.ymin = min(ylist)
-        self.zmax = max(zlist)
-        self.zmin = min(zlist)
-
     def fillClosed(self):
         self.updatePosMaxMin()
         newdata = BED3D()
@@ -119,6 +120,119 @@ class BED3D(dict):
                         pass
         return newdata
 
+    #============= out flag based delete decision ==========#
+    def checkClosed_base_usingOut(self, value, level, smaller_list, larger_list):
+        def fand(x,y): return (x and y)
+        closed_weak = len(smaller_list) >= level and len(larger_list) >= level
+        smaller_adj_is_in = True
+        larger_adj_is_in = True
+        if closed_weak:
+            smaller_adj_is_in = reduce(fand, [(smaller_list[-i][0] != value-i or smaller_list[-i][1].outflag != True) for i in range(1, level+1)], True)
+            larger_adj_is_in = reduce(fand, [(larger_list[i-1][0] != value+i or larger_list[i-1][1].outflag != True) for i in range(1, level+1)], True)
+        closed = closed_weak and smaller_adj_is_in and larger_adj_is_in
+        return closed
+    def checkClosedX_usingOut(self,x,y,z,  level):
+        xlist = self.getListYZis(y,z)
+        xlist_smaller = sorted([(e.x, e) for e in xlist if e.x < x])
+        xlist_larger  = sorted([(e.x, e) for e in xlist if e.x > x])
+        return self.checkClosed_base_usingOut(x, level, xlist_smaller, xlist_larger)
+    def checkClosedY_usingOut(self,x,y,z, level):
+        ylist = self.getListZXis(z,x)
+        ylist_smaller = sorted([(e.y, e) for e in ylist if e.y < y])
+        ylist_larger  = sorted([(e.y, e) for e in ylist if e.y > y])
+        return self.checkClosed_base_usingOut(y, level, ylist_smaller, ylist_larger)
+    def checkClosedZ_usingOut(self,x,y,z, level):
+        zlist = self.getListXYis(x,y)
+        zlist_smaller = sorted([(e.z, e) for e in zlist if e.z < z])
+        zlist_larger  = sorted([(e.z, e) for e in zlist if e.z > z])
+        return self.checkClosed_base_usingOut(z, level, zlist_smaller, zlist_larger)
+    def checkClosedPos_usingOut(self,x,y,z, level):
+        allclosed = (self.checkClosedX_usingOut(x,y,z, level) and
+                     self.checkClosedY_usingOut(x,y,z, level) and
+                     self.checkClosedZ_usingOut(x,y,z, level))
+        return allclosed
+
+    def initOutFlag(self):
+        for v in self.values():
+            v.outflag = None
+            v.doneflag = False
+
+    def cleanOuts(self):
+        for k, v in self.items():
+            if v.outflag == True:
+                del(self[k])
+
+    def getFillingOut(self,x,y,z):
+        if (self.xmin <= x <= self.xmax and 
+            self.ymin <= y <= self.ymax and
+            self.zmin <= z <= self.zmax):
+            b = self.get((x,y,z), None)
+            if b == None:
+                newline = "%d %d %d %d %d %d %d" % (x, y, z, FILL_R, FILL_G, FILL_B, FILL_A)
+                b = BED(newline)
+                b.outflag = True
+                self[x,y,z] = b
+            else:
+                if b.outflag == None:
+                    b.outflag = False
+            return b
+        else:
+            return None
+    def getSurroundsFillingOut(self, x,y,z):
+        top  = self.getFillingOut(x,y+1,z)
+        bot  = self.getFillingOut(x,y-1,z)
+        rig  = self.getFillingOut(x+1,y,z)
+        lef  = self.getFillingOut(x-1,y,z)
+        back = self.getFillingOut(x,y,z+1)
+        fore = self.getFillingOut(x,y,z-1)
+        return top,bot,lef,rig,fore,back
+    def recurSetOut(self, b):
+        #print "@recurSetOut: (%d, %d, %d)" % (b.x, b.y, b.z)
+        b.doneflag = True
+        top,bot,lef,rig,fore,back = self.getSurroundsFillingOut(b.x, b.y, b.z)
+        if top  and top.outflag  == True and top.doneflag != True: self.recurSetOut(top)
+        if rig  and rig.outflag  == True and rig.doneflag != True: self.recurSetOut(rig)
+        if back and back.outflag == True and back.doneflag != True: self.recurSetOut(back)
+    def setOutBEDs(self):
+        self.initOutFlag()
+        self.updatePosMaxMin()
+        # make base position which is absolutely OUT
+        newline = "%d %d %d %d %d %d %d" % (self.xmin-1, self.ymin-1, self.zmin-1, 
+                                            FILL_R, FILL_G, FILL_B, FILL_A)
+        n = BED(newline)
+        n.outflag = True
+        self[(self.xmin-1, self.ymin-1, self.zmin-1)] = n
+        self.updatePosMaxMin()
+        self.recurSetOut(n)
+
+    def delClosed_usingOut(self, level):
+        newdata = BED3D()
+        self.setOutBEDs()
+        for (x,y,z), v in self.items():
+            if v.outflag != True and not self.checkClosedPos_usingOut(x,y,z, level):
+                newdata[(x,y,z)] = v
+        return newdata
+
+    def fillClosed_usingOut(self):
+        self.setOutBEDs()
+        self.updatePosMaxMin()
+        newdata = BED3D()
+        for x in range(self.xmin, self.xmax+1):
+            for y in range(self.ymin, self.ymax+1):
+                for z in range(self.zmin, self.zmax+1):
+                    #print "check (%d, %d, %d)" % (x,y,z), 
+                    v = self.get((x,y,z), None)
+                    if v:
+                        if not v.outflag: 
+                            newdata[(x,y,z)] = v
+                            #print "exist original data" 
+                    else:
+                        fillboxel = "%d,%d,%d %d,%d,%d %d" % (x,y,z, FILL_R, FILL_G, FILL_B, FILL_A)
+                        newdata[(x,y,z)] = BED(fillboxel)
+                        #print "fill!" 
+        return newdata
+
+    #==== Mirror model generation ====#
     def makeMirrorModel(self, mode):
         # entry
         if mode==0:   # center mirror (use left)
@@ -176,6 +290,8 @@ class BED(object):
         self.alpha = int(alpha)
         self.line = line # original data
         self.delflag = False
+        self.outflag = None # None means not set
+        self.doneflag = None
 
     def __repr__(self):
         return self.line
@@ -187,21 +303,6 @@ class BED(object):
         newbed.z = z
         newbed.line = "%d %d %d %d %d %d %d" % (x,y,z, self.r, self.g, self.b, self.alpha)
         return newbed
-
-#    def is_top_of(self, other):
-#        return self.y == other.y-1
-#    def is_bottom_of(self, other):
-#        return self.y == other.y+1
-#
-#    def is_left_of(self, other):
-#        return self.x == other.x-1
-#    def is_right_of(self, other):
-#        return self.x == other.x+1
-#
-#    def is_fore_of(self, other): # foreground
-#        return self.z == other.z-1
-#    def is_back_of(self, other): # background
-#        return self.z == other.z+1
 
 def bed_read(bedfilename):
     bed3D = BED3D()
@@ -258,10 +359,12 @@ if __name__ == "__main__":
 
     outstr = None
     if mode == 0: # hollow mode
-        pruned = bed3D.delClosed(level)
+        #pruned = bed3D.delClosed(level)
+        pruned = bed3D.delClosed_usingOut(level)
         outstr = pruned.printAll()
     elif mode == 1: # fill mode
-        filled = bed3D.fillClosed()
+        #filled = bed3D.fillClosed()
+        filled = bed3D.fillClosed_usingOut()
         outstr = filled.printAll()
     elif mode== 2: # mirror mode
         newmodel = bed3D.makeMirrorModel(mirrormode)
