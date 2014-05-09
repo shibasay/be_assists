@@ -332,49 +332,60 @@ def getopt():
                       metavar="OUTPUT")
     parser.add_option("-m", "--mode",
                       dest="mode",
+                      type="int",
+                      default=0,
                       help="specify processing mode: 0(hollow) or 1(fill)",
                       metavar="MODE")
     parser.add_option("-l", "--level",
                       dest="level",
+                      type="int",
+                      default=1,
                       help="specify level for hollowing mode: should be greater than or equal to 0",
                       metavar="LEVEL")
     parser.add_option("-r", "--mirrormode",
                       dest="mirrormode",
+                      type="int",
+                      default=0,
                       help="specify mirrormode 0: use left half, 1: use right half, 2: make other one",
                       metavar="LEVEL")
+    parser.add_option("-s", "--scale",
+                      dest="scale",
+                      type="int",
+                      default=1,
+                      help="specify scaling factor integer",
+                      metavar="SCALE")
     (options, args) = parser.parse_args() #引数パーズ
 
-    infile  = options.inputfile  if options.inputfile else None
-    outfile = options.outputfile if options.outputfile else None
-    mode    = int(options.mode)  if options.mode else 0
-    level   = int(options.level) if options.level else 1
-    mirrormode = int(options.mirrormode) if options.mirrormode else 0
-
-    if infile == None: 
+    if options.inputfile == None: 
         parser.print_help()
         exit()
     else:
-        return (infile, outfile, mode, level, mirrormode)
+        return options
 
 
 if __name__ == "__main__":
-    filename, outname, mode, level, mirrormode = getopt()
+    #filename, outname, mode, level, mirrormode, scale = getopt()
+    options = getopt()
 
-    bed3D = bed_read(filename)
+    bed3D = bed_read(options.inputfile)
 
     outstr = None
+    mode = options.mode
     if mode == 0: # hollow mode
-        pruned = bed3D.delClosed_usingOut(level)
+        pruned = bed3D.delClosed_usingOut(options.level)
         outstr = pruned.printAll()
     elif mode == 1: # fill mode
         filled = bed3D.fillClosed_usingOut()
         outstr = filled.printAll()
     elif mode== 2: # mirror mode
-        newmodel = bed3D.makeMirrorModel(mirrormode)
+        newmodel = bed3D.makeMirrorModel(options.mirrormode)
+        outstr = newmodel.printAll()
+    elif mode== 3: # scaling mode
+        newmodel = bed3D.makeScaledModel(options.scale)
         outstr = newmodel.printAll()
 
-    if outname: 
-        with open(outname, "wt") as of:
+    if options.outputfile: 
+        with open(options.outputfile, "wt") as of:
             of.write(outstr)
     else:
         import sys
