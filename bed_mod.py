@@ -171,7 +171,7 @@ class BED3D(dict):
                 newline = "%d %d %d %d %d %d %d" % (x, y, z, FILL_R, FILL_G, FILL_B, FILL_A)
                 b = BED(newline)
                 b.outflag = True
-                self[x,y,z] = b
+                self[(x,y,z)] = b
             else:
                 if b.outflag == None:
                     b.outflag = False
@@ -186,13 +186,10 @@ class BED3D(dict):
         back = self.getFillingOut(x,y,z+1)
         fore = self.getFillingOut(x,y,z-1)
         return top,bot,lef,rig,fore,back
-    def recurSetOut(self, b):
-        #print "@recurSetOut: (%d, %d, %d)" % (b.x, b.y, b.z)
+    def getSurroundingUndoneOuts(self,b):
         b.doneflag = True
-        top,bot,lef,rig,fore,back = self.getSurroundsFillingOut(b.x, b.y, b.z)
-        if top  and top.outflag  == True and top.doneflag != True: self.recurSetOut(top)
-        if rig  and rig.outflag  == True and rig.doneflag != True: self.recurSetOut(rig)
-        if back and back.outflag == True and back.doneflag != True: self.recurSetOut(back)
+        surrounds = self.getSurroundsFillingOut(b.x, b.y, b.z)
+        return [b for b in surrounds if b and b.outflag == True and b.doneflag != True]
     def setOutBEDs(self):
         self.initOutFlag()
         self.updatePosMaxMin()
@@ -203,13 +200,21 @@ class BED3D(dict):
         n.outflag = True
         self[(self.xmin-1, self.ymin-1, self.zmin-1)] = n
         self.updatePosMaxMin()
-        self.recurSetOut(n)
+
+        undones = self.getSurroundingUndoneOuts(n)
+        while undones:
+            newundones = set()
+            for b in undones:
+                for e in self.getSurroundingUndoneOuts(b):
+                    newundones.add(e)
+            undones = newundones
 
     def delClosed_usingOut(self, level):
         newdata = BED3D()
         self.setOutBEDs()
         for (x,y,z), v in self.items():
             if v.outflag != True and not self.checkClosedPos_usingOut(x,y,z, level):
+            #if True: # test
                 newdata[(x,y,z)] = v
         return newdata
 
@@ -291,7 +296,7 @@ class BED(object):
         self.line = line # original data
         self.delflag = False
         self.outflag = None # None means not set
-        self.doneflag = None
+        self.doneflag = False
 
     def __repr__(self):
         return self.line
@@ -359,11 +364,9 @@ if __name__ == "__main__":
 
     outstr = None
     if mode == 0: # hollow mode
-        #pruned = bed3D.delClosed(level)
         pruned = bed3D.delClosed_usingOut(level)
         outstr = pruned.printAll()
     elif mode == 1: # fill mode
-        #filled = bed3D.fillClosed()
         filled = bed3D.fillClosed_usingOut()
         outstr = filled.printAll()
     elif mode== 2: # mirror mode
