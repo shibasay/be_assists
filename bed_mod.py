@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# fileencoding=utf-8
 #author  : @shibasay 
 #date    : 2014/5/5
 
@@ -14,6 +15,28 @@ FILL_G=255
 FILL_B=255
 FILL_A=255
 
+import math
+def rotate2D(x,y, degree):
+    newx, newy = None, None
+    theta = math.radians(degree)
+    cos = math.cos(theta)
+    sin = math.sin(theta)
+    # 浮動小数点->整数変換の誤差の影響を極力なくすため、
+    # 90度の倍数の回転のときのみ sin(), cos() の結果を整数におとす
+    # （理論上 1,-1,0 のどれかなので、演算前に整数にしても問題ない）
+    if degree % 90 == 0:
+        cos = int(cos)
+        sin = int(sin)
+    newx = cos * x - sin * y
+    newy = sin * x + cos * y
+    return newx, newy
+def rotate3D(x,y,z, xdegree, ydegree, zdegree):
+    newx,newy,newz = x,y,z
+    newy, newz = rotate2D(newy,newz, xdegree)
+    newx, newz = rotate2D(newx,newz, ydegree)
+    newx, newy = rotate2D(newx,newy, zdegree)
+    return newx, newy, newz
+
 class BED3D(dict):
     def printAll(self):
         outlist = []
@@ -21,13 +44,6 @@ class BED3D(dict):
         for v in self.values():
             outlist.append(v.getline())
         return "\n".join(outlist)
-
-#    def getListXis(self, xpos):
-#        return [v for (x,y,z), v in self.items() if x==xpos]
-#    def getListYis(self, ypos):
-#        return [v for (x,y,z), v in self.items() if y==ypos]
-#    def getListZis(self, zpos):
-#        return [v for (x,y,z), v in self.items() if z==zpos]
 
     def getSurrounds(self, x,y,z): 
         top = self.get((x,y-1,z), None)
@@ -81,29 +97,34 @@ class BED3D(dict):
 
     #============= out flag based delete decision ==========#
     def checkClosed_base_usingOut(self, value, level, smaller_list, larger_list):
-        def fand(x,y): return (x and y)
+        fand = lambda x,y: x and y
         closed_weak = len(smaller_list) >= level and len(larger_list) >= level
         smaller_adj_is_in = True
         larger_adj_is_in = True
         if closed_weak:
-            smaller_adj_is_in = reduce(fand, [(smaller_list[-i][0] != value-i or smaller_list[-i][1].outflag != True) for i in range(1, level+1)], True)
-            larger_adj_is_in = reduce(fand, [(larger_list[i-1][0] != value+i or larger_list[i-1][1].outflag != True) for i in range(1, level+1)], True)
+            #smaller_adj_is_in = reduce(fand, [(smaller_list[-i][0] != value-i or smaller_list[-i][1].outflag != True) for i in range(1, level+1)], True)
+            #larger_adj_is_in = reduce(fand, [(larger_list[i-1][0] != value+i or larger_list[i-1][1].outflag != True) for i in range(1, level+1)], True)
+            smaller_adj_is_in = reduce(fand, [not smaller_list[-i][1].outflag for i in range(1, level+1)], True)
+            larger_adj_is_in = reduce(fand, [not larger_list[i-1][1].outflag for i in range(1, level+1)], True)
         closed = closed_weak and smaller_adj_is_in and larger_adj_is_in
         return closed
     def checkClosedX_usingOut(self,x,y,z,  level):
         xlist = self.getListYZis(y,z)
-        xlist_smaller = [(ex, e) for (ex, e) in xlist if ex < x]
-        xlist_larger  = [(ex, e) for (ex, e) in xlist if ex > x]
+        xlist_roi = [(ex, e) for (ex, e) in xlist if x-level <= ex <= x+level]
+        xlist_smaller = [(ex, e) for (ex, e) in xlist_roi if ex < x]
+        xlist_larger  = [(ex, e) for (ex, e) in xlist_roi if x < ex]
         return self.checkClosed_base_usingOut(x, level, xlist_smaller, xlist_larger)
     def checkClosedY_usingOut(self,x,y,z, level):
         ylist = self.getListZXis(z,x)
-        ylist_smaller = [(ey, e) for (ey, e) in ylist if ey < y]
-        ylist_larger  = [(ey, e) for (ey, e) in ylist if ey > y]
+        ylist_roi = [(ey, e) for (ey, e) in ylist if y-level <= ey <= y+level]
+        ylist_smaller = [(ey, e) for (ey, e) in ylist_roi if ey < y]
+        ylist_larger  = [(ey, e) for (ey, e) in ylist_roi if y < ey]
         return self.checkClosed_base_usingOut(y, level, ylist_smaller, ylist_larger)
     def checkClosedZ_usingOut(self,x,y,z, level):
         zlist = self.getListXYis(x,y)
-        zlist_smaller = [(ez, e) for (ez, e) in zlist if ez < z]
-        zlist_larger  = [(ez, e) for (ez, e) in zlist if ez > z]
+        zlist_roi = [(ez, e) for (ez, e) in zlist if z-level <= ez <= z+level]
+        zlist_smaller = [(ez, e) for (ez, e) in zlist_roi if ez < z]
+        zlist_larger  = [(ez, e) for (ez, e) in zlist_roi if z < ez]
         return self.checkClosed_base_usingOut(z, level, zlist_smaller, zlist_larger)
     def checkClosedPos_usingOut(self,x,y,z, level):
         allclosed = (self.checkClosedX_usingOut(x,y,z, level) and
@@ -113,13 +134,13 @@ class BED3D(dict):
 
     def initOutFlag(self):
         for v in self.values():
-            v.outflag = None
+            v.outflag = False
             v.doneflag = False
 
     def cleanOuts(self):
         newmodel = BED3D()
         for k, b in self.items():
-            if b.outflag != True:
+            if not b.outflag:
                 newmodel[k] = b
         return newmodel
 
@@ -132,9 +153,6 @@ class BED3D(dict):
                 b = Boxel(x, y, z, FILL_R, FILL_G, FILL_B, FILL_A)
                 b.outflag = True
                 self[(x,y,z)] = b
-            else:
-                if b.outflag == None:
-                    b.outflag = False
             return b
         else:
             return None
@@ -149,58 +167,58 @@ class BED3D(dict):
     def getSurroundingUndoneOuts(self,b):
         b.doneflag = True
         surrounds = self.getSurroundsFillingOut(b.x, b.y, b.z)
-        return [b for b in surrounds if b and b.outflag == True and b.doneflag != True]
+        return [b for b in surrounds if b and b.outflag and not b.doneflag]
     def setOutBoxels(self):
         self.initOutFlag()
         self.updatePosMaxMin()
 
-        newdata = BED3D()
-        for k,b in self.items(): newdata[k] = b
+        newmodel = BED3D()
+        for k,b in self.items(): newmodel[k] = b
 
         # make base position which is absolutely OUT
         n = Boxel(self.xmin-1, self.ymin-1, self.zmin-1,FILL_R, FILL_G, FILL_B, FILL_A)
         n.outflag = True
-        newdata[n.getPosTuple()] = n
-        newdata.updatePosMaxMin()
+        newmodel[n.getPosTuple()] = n
+        newmodel.updatePosMaxMin()
 
-        undones = newdata.getSurroundingUndoneOuts(n)
+        undones = newmodel.getSurroundingUndoneOuts(n)
         while undones:
             newundones = set()
             for b in undones:
-                for e in newdata.getSurroundingUndoneOuts(b):
+                for e in newmodel.getSurroundingUndoneOuts(b):
                     newundones.add(e)
             undones = newundones
-        newdata.updatePosMaxMin()
-        return newdata
+        newmodel.updatePosMaxMin()
+        return newmodel
 
     def delClosed_remainingOut(self, level):
         outfilled = self.setOutBoxels()
         outfilled.updateXYZlist()
-        newdata = BED3D()
+        newmodel = BED3D()
         for (x,y,z), v in outfilled.items():
             if not outfilled.checkClosedPos_usingOut(x,y,z, level):
-                newdata[(x,y,z)] = v
-        return newdata
+                newmodel[(x,y,z)] = v
+        return newmodel
     def delClosed(self, level):
         return self.delClosed_remainingOut(level).cleanOuts()
 
     def fillClosed_remainingOut(self):
         outfilled = self.setOutBoxels()
-        newdata = BED3D()
+        newmodel = BED3D()
         for x in range(outfilled.xmin, outfilled.xmax+1):
             for y in range(outfilled.ymin, outfilled.ymax+1):
                 for z in range(outfilled.zmin, outfilled.zmax+1):
                     #print "check (%d, %d, %d)" % (x,y,z), 
                     v = outfilled.get((x,y,z), None)
                     if v:
-                        newdata[(x,y,z)] = v
+                        newmodel[(x,y,z)] = v
                         #print "exist original data" 
                     else:
                         #fillboxel = "%d,%d,%d %d,%d,%d %d" % (x,y,z, FILL_R, FILL_G, FILL_B, FILL_A)
                         n = Boxel(x,y,z, FILL_R, FILL_G, FILL_B, FILL_A)
-                        newdata[n.getPosTuple()] = n
+                        newmodel[n.getPosTuple()] = n
                         #print "fill!" 
-        return newdata
+        return newmodel
     def fillClosed(self):
         return self.fillClosed_remainingOut().cleanOuts()
 
@@ -221,32 +239,32 @@ class BED3D(dict):
         width = self.xmax - self.xmin + 1
         offset = width & 1
         center = width//2 + offset - 1 + self.xmin
-        newdata = BED3D()
+        newmodel = BED3D()
         #print "@delHalf: width = %d, offset = %d, center = %d, xmin = %d, xmax = %d" % (width, offset, center, self.xmin, self.xmax)
         if lr == 0: # delete right
             for (x,y,z), v in self.items():
                 if x <= center:
-                    newdata[(x,y,z)] = v
+                    newmodel[(x,y,z)] = v
         else:
             for (x,y,z), v in self.items():
                 if x > center-offset:
-                    newdata[(x,y,z)] = v
-        return newdata, offset
+                    newmodel[(x,y,z)] = v
+        return newmodel, offset
 
     def makeMirror(self, lr, oddflag):
         self.updatePosMaxMin()
         center = self.xmax if lr==0 else self.xmin
         width = self.xmax - self.xmin + 1
         offset = 1 - oddflag
-        newdata = BED3D()
+        newmodel = BED3D()
         #print "@makeMirror: width = %d, oddflag = %d, xmin = %d, xmax = %d" % (width, oddflag, self.xmin, self.xmax)
         for (x,y,z), v in self.items():
-            newdata[(x,y,z)] = v
+            newmodel[(x,y,z)] = v
             diff = x-center
             newx = center-diff+offset if lr==0 else center-diff-offset
             if newx != x:
-                newdata[(newx,y,z)] = v.genModPos(newx,y,z)
-        return newdata
+                newmodel[(newx,y,z)] = v.genModPosBoxel(newx,y,z)
+        return newmodel
 
     #==== Scaled model generation ====#
     def makeScaledModel(self, scale):
@@ -260,7 +278,7 @@ class BED3D(dict):
             scalex = x * scale
             scaley = y * scale
             scalez = z * scale
-            newmodel[(scalex, scaley, scalez)] = b.genModPos(scalex, scaley, scalez)
+            newmodel[(scalex, scaley, scalez)] = b.genModPosBoxel(scalex, scaley, scalez)
         return newmodel
     def genScaledBoxels(self, scale):
         newmodel = BED3D()
@@ -268,12 +286,12 @@ class BED3D(dict):
             for newz in  range(z, z+scale):
                 for newy in  range(y, y+scale):
                     for newx in  range(x, x+scale):
-                        newmodel[(newx, newy, newz)] = b.genModPos(newx, newy, newz)
+                        newmodel[(newx, newy, newz)] = b.genModPosBoxel(newx, newy, newz)
         return newmodel
     def smoothing(self, scale):
         outfilled = self.fillClosed_remainingOut()
-        newmodel = BED3D()
         originals = [((x,y,z), b) for (x,y,z), b in self.items() if x%scale==0 and y%scale==0 and z%scale==0]
+        newmodel = BED3D()
         for (x,y,z),b in originals:
             #print "orignal (%d, %d, %d)" % (x,y,z)
             scales = []
@@ -295,13 +313,13 @@ class BED3D(dict):
                 for zz in  range(z, z+scale):
                     surrounds.append(outfilled[(xx,y-1,zz)])
                     surrounds.append(outfilled[(xx,y+scale,zz)])
-            surrounds_in = [e for e in surrounds if e.outflag != True]
+            surrounds_in = [e for e in surrounds if not e.outflag]
             #print "check scales"
             for s in scales:
                 #print "\t(x,y,z) = (%d, %d, %d)" % (s.x, s.y, s.z),
                 if not set(outfilled.getSurrounds(s.x, s.y, s.z)) & set(surrounds_in):
                     # boxels surfacing out is conditionally deleted
-                    surface_outs = [e for e in outfilled.getSurrounds(s.x, s.y, s.z) if e.outflag == True]
+                    surface_outs = [e for e in outfilled.getSurrounds(s.x, s.y, s.z) if e.outflag]
                     #print "surfacing out: out num = ", len(surface_outs)
                     #for sout in surface_outs:
                     #    print "\t\tout (%d, %d, %d)" % (sout.x, sout.y, sout.z)
@@ -317,56 +335,17 @@ class BED3D(dict):
     def makeMovedModel(self, mvx, mvy, mvz):
         newmodel = BED3D()
         for (x,y,z), b in self.items():
-            mb = b.genModPos(x+mvx, y+mvy, z+mvz)
+            mb = b.genModPosBoxel(x+mvx, y+mvy, z+mvz)
             newmodel[mb.getPosTuple()] = mb
         return newmodel
 
     #==== rotated model generation ====#
-    def makeRotatedModel(self, rotaxis, rotdegree):
+    def makeRotatedModel(self, xdegree, ydegree, zdegree):
         newmodel = BED3D()
         for (x,y,z), b in self.items():
-            if rotaxis == 0: # x
-                if rotdegree == 0: # 90
-                    newx = x
-                    newy = -z
-                    newz =  y
-                elif rotdegree == 1: # -90
-                    newx = x
-                    newy =  z
-                    newz = -y
-                elif rotdegree == 2: # 180
-                    newx = x
-                    newy = -y
-                    newz = -z
-            elif rotaxis == 1: # y
-                if rotdegree == 0: # 90
-                    newy = y
-                    newx = -z
-                    newz =  x
-                elif rotdegree == 1: # -90
-                    newy = y
-                    newx =  z
-                    newz = -x
-                elif rotdegree == 2: # 180
-                    newy = y
-                    #newx = -y # bug but interesting!!
-                    #newz = -x
-                    newx = -x
-                    newz = -z
-            elif rotaxis == 2: # z
-                if rotdegree == 0: # 90
-                    newz = z
-                    newx = -y
-                    newy =  x
-                elif rotdegree == 1: # -90
-                    newz = z
-                    newx =  y
-                    newy = -x
-                elif rotdegree == 2: # 180
-                    newz = z
-                    newx = -x
-                    newy = -y
-            mb = b.genModPos(newx, newy, newz)
+            newx, newy, newz = [int(v) for v in rotate3D(x,y,z, xdegree, ydegree, zdegree)]
+            #print "rot z90 from (%d, %d, %d) to (%d, %d, %d)" % (x,y,z, newx,newy,newz)
+            mb = b.genModPosBoxel(newx, newy, newz)
             newmodel[mb.getPosTuple()] = mb
         return newmodel
 
@@ -375,13 +354,11 @@ class Boxel(object):
         self.x = int(x)
         self.y = int(y)
         self.z = int(z)
-        #self.color = color
         self.r = int(r)
         self.g = int(g)
         self.b = int(b)
         self.alpha = int(alpha)
-        #self.delflag = False
-        self.outflag = None # None means not set
+        self.outflag = False
         self.doneflag = False
 
     def getline(self):
@@ -392,7 +369,7 @@ class Boxel(object):
     def __repr__(self):
         return self.getline()
 
-    def genModPos(self,x,y,z):
+    def genModPosBoxel(self,x,y,z):
         newbed = Boxel(x, y, z, self.r, self.g, self.b, self.alpha)
         return newbed
 
@@ -459,18 +436,24 @@ def getopt():
                       default=0,
                       help="specify move vector z",
                       metavar="MVZ")
-    parser.add_option("-a", "--rotaxis",
-                      dest="rotaxis",
+    parser.add_option("--xdegree",
+                      dest="xdegree",
                       type="int",
                       default=0,
-                      help="specify rotation axis: 0(x), 1(y), 2(z)",
-                      metavar="ROTAXIS")
-    parser.add_option("-d", "--rotdegree",
-                      dest="rotdegree",
+                      help="specify rotation degree on axis x",
+                      metavar="XDEGREE")
+    parser.add_option("--ydegree",
+                      dest="ydegree",
                       type="int",
                       default=0,
-                      help="specify rotation degree: 0(90), 1(-90), 2(180)",
-                      metavar="ROTDEGREE")
+                      help="specify rotation degree on axis y",
+                      metavar="YDEGREE")
+    parser.add_option("--zdegree",
+                      dest="zdegree",
+                      type="int",
+                      default=0,
+                      help="specify rotation degree on axis z",
+                      metavar="ZDEGREE")
     (options, args) = parser.parse_args() #引数パーズ
 
     if options.inputfile == None: 
@@ -481,31 +464,20 @@ def getopt():
 
 
 if __name__ == "__main__":
-    #filename, outname, mode, level, mirrormode, scale = getopt()
     options = getopt()
 
     bed3D = bed_read(options.inputfile)
 
-    outstr = None
-    mode = options.mode
-    if mode == 0: # hollow mode
-        pruned = bed3D.delClosed(options.level)
-        outstr = pruned.printAll()
-    elif mode == 1: # fill mode
-        filled = bed3D.fillClosed()
-        outstr = filled.printAll()
-    elif mode == 2: # mirror mode
-        newmodel = bed3D.makeMirrorModel(options.mirrormode)
-        outstr = newmodel.printAll()
-    elif mode == 3: # scaling mode
-        newmodel = bed3D.makeScaledModel(options.scale)
-        outstr = newmodel.printAll()
-    elif mode == 4: # move mode
-        newmodel = bed3D.makeMovedModel(options.mvx, options.mvy, options.mvz)
-        outstr = newmodel.printAll()
-    elif mode == 5: # rotate mode
-        newmodel = bed3D.makeRotatedModel(options.rotaxis, options.rotdegree)
-        outstr = newmodel.printAll()
+    exedict = {
+            0: lambda options: bed3D.delClosed(options.level),
+            1: lambda options: bed3D.fillClosed(),
+            2: lambda options: bed3D.makeMirrorModel(options.mirrormode),
+            3: lambda options: bed3D.makeScaledModel(options.scale),
+            4: lambda options: bed3D.makeMovedModel(options.mvx, options.mvy, options.mvz),
+            5: lambda options: bed3D.makeRotatedModel(options.xdegree, options.ydegree, options.zdegree)
+            }
+    newmodel = exedict[options.mode](options)
+    outstr = newmodel.printAll()
 
     if options.outputfile: 
         with open(options.outputfile, "wt") as of:

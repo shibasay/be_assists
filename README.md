@@ -11,7 +11,7 @@ date    : 2014/5/10 (last update)
 @aki426 による3Dモデリングソフト be! のセーブファイル（.bed）を読み込み、モデルを修正するスクリプトです。
 
 ## usage
-`python ./bed_mod.py -i [filename.bed] -o [outname.bed] -m [mode] -l [level] -r [mirrormode] -s [scale] -x [mvx] -y [mvy] -z [mvz] -a [rotaxis] -d [rotdegree]`
+`python ./bed_mod.py -i [filename.bed] -o [outname.bed] -m [mode] -l [level] -r [mirrormode] -s [scale] -x [mvx] -y [mvy] -z [mvz] --xdegreee [xdegree] --ydegree [ydegree] --zdegree [zdegree]`
 
 ## 引数説明
 
@@ -41,14 +41,9 @@ date    : 2014/5/10 (last update)
 * [mvx] [mvy] [mvz] : 平行移動モードでの移動量。 mode 4 の場合にのみ使用
      * デフォルト値はどれも0（移動なし）
      * 整数値のみ対応
-* [rotaxis] : 回転軸
-     * 0 X軸
-     * 1 y軸
-     * 2 z軸
-* [rotdegree] : 回転量
-     * 0 90度
-     * 1 -90度
-     * 2 180度
+* [xdegree] [ydegree] [zdegree]: X/Y/Z軸まわりの回転量
+     * デフォルト値は 0
+     * 整数で、度数（0度、90度など）で指定
 
 ## アルゴリズム詳細（へぼい）
 ### 中空モード
@@ -83,4 +78,4 @@ date    : 2014/5/10 (last update)
 なんの難しさも無い平行移動。なぜ最初に実装しなかったのか…。
 
 ### 回転モード
-回転行列とか久しぶりに考えたわー。90度ずつしかしないくせにな！
+回転行列を用いて実装。ただし最後の浮動小数点→整数変換の扱いをまじめにしていないため、90の倍数以外の度数に対してはボクセル抜けが発生したりします。あらかじめご了承ください。
