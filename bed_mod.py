@@ -2,6 +2,7 @@
 #author  : @shibasay 
 #date    : 2014/5/5
 
+import re
 from optparse import OptionParser
 
 header=r"""#be! data file
@@ -369,7 +370,6 @@ class BED3D(dict):
             newmodel[mb.getPosTuple()] = mb
         return newmodel
 
-import re
 class Boxel(object):
     def __init__(self, x,y,z, r,g,b, alpha):
         self.x = int(x)
@@ -408,7 +408,7 @@ def bed_read(bedfilename):
 
 def getopt():
     version = '%prog 0.1'
-    parser = OptionParser(usage=None, version=version) # usage$B$N(B %prog $B$O(BOptionParser$B$K$h$C$F(Bos.path.basename(sys.argv[0])$B$KCV49$($i$l$k(B
+    parser = OptionParser(usage=None, version=version) # usageの %prog はOptionParserによってos.path.basename(sys.argv[0])に置換えられる
     parser.add_option("-i", "--input",
                       dest="inputfile",
                       help="specify input file name",
@@ -471,7 +471,7 @@ def getopt():
                       default=0,
                       help="specify rotation degree: 0(90), 1(-90), 2(180)",
                       metavar="ROTDEGREE")
-    (options, args) = parser.parse_args() #$B0z?t%Q!<%:(B
+    (options, args) = parser.parse_args() #引数パーズ
 
     if options.inputfile == None: 
         parser.print_help()
