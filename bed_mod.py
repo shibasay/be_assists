@@ -312,6 +312,14 @@ class BED3D(dict):
                     newmodel[(s.x, s.y, s.z)] = s
         return newmodel
 
+    #==== Scaled model generation ====#
+    def makeMovedModel(self, mvx, mvy, mvz):
+        newmodel = BED3D()
+        for (x,y,z), b in self.items():
+            mb = b.genModPos(x+mvx, y+mvy, z+mvz)
+            newmodel[mb.getPosTuple()] = mb
+        return newmodel
+
 import re
 class Boxel(object):
     def __init__(self, x,y,z, r,g,b, alpha):
@@ -384,6 +392,24 @@ def getopt():
                       default=1,
                       help="specify scaling factor integer",
                       metavar="SCALE")
+    parser.add_option("-x", "--mvx",
+                      dest="mvx",
+                      type="int",
+                      default=0,
+                      help="specify move vector x",
+                      metavar="MVX")
+    parser.add_option("-y", "--mvy",
+                      dest="mvy",
+                      type="int",
+                      default=0,
+                      help="specify move vector y",
+                      metavar="MVY")
+    parser.add_option("-z", "--mvz",
+                      dest="mvz",
+                      type="int",
+                      default=0,
+                      help="specify move vector z",
+                      metavar="MVZ")
     (options, args) = parser.parse_args() #引数パーズ
 
     if options.inputfile == None: 
@@ -412,6 +438,9 @@ if __name__ == "__main__":
         outstr = newmodel.printAll()
     elif mode== 3: # scaling mode
         newmodel = bed3D.makeScaledModel(options.scale)
+        outstr = newmodel.printAll()
+    elif mode== 4: # move mode
+        newmodel = bed3D.makeMovedModel(options.mvx, options.mvy, options.mvz)
         outstr = newmodel.printAll()
 
     if options.outputfile: 
