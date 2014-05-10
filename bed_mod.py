@@ -320,6 +320,55 @@ class BED3D(dict):
             newmodel[mb.getPosTuple()] = mb
         return newmodel
 
+    #==== rotated model generation ====#
+    def makeRotatedModel(self, rotaxis, rotdegree):
+        newmodel = BED3D()
+        for (x,y,z), b in self.items():
+            if rotaxis == 0: # x
+                if rotdegree == 0: # 90
+                    newx = x
+                    newy = -z
+                    newz =  y
+                elif rotdegree == 1: # -90
+                    newx = x
+                    newy =  z
+                    newz = -y
+                elif rotdegree == 2: # 180
+                    newx = x
+                    newy = -y
+                    newz = -z
+            elif rotaxis == 1: # y
+                if rotdegree == 0: # 90
+                    newy = y
+                    newx = -z
+                    newz =  x
+                elif rotdegree == 1: # -90
+                    newy = y
+                    newx =  z
+                    newz = -x
+                elif rotdegree == 2: # 180
+                    newy = y
+                    #newx = -y # bug but interesting!!
+                    #newz = -x
+                    newx = -x
+                    newz = -z
+            elif rotaxis == 2: # z
+                if rotdegree == 0: # 90
+                    newz = z
+                    newx = -y
+                    newy =  x
+                elif rotdegree == 1: # -90
+                    newz = z
+                    newx =  y
+                    newy = -x
+                elif rotdegree == 2: # 180
+                    newz = z
+                    newx = -x
+                    newy = -y
+            mb = b.genModPos(newx, newy, newz)
+            newmodel[mb.getPosTuple()] = mb
+        return newmodel
+
 import re
 class Boxel(object):
     def __init__(self, x,y,z, r,g,b, alpha):
@@ -372,7 +421,7 @@ def getopt():
                       dest="mode",
                       type="int",
                       default=0,
-                      help="specify processing mode: 0(hollow) or 1(fill)",
+                      help="specify processing mode: 0(hollow), 1(fill), 2(mirror), 3(scale), 4(move), 5(rotate)",
                       metavar="MODE")
     parser.add_option("-l", "--level",
                       dest="level",
@@ -384,7 +433,7 @@ def getopt():
                       dest="mirrormode",
                       type="int",
                       default=0,
-                      help="specify mirrormode 0: use left half, 1: use right half, 2: make other one",
+                      help="specify mirrormode: 0(use left half), 1(use right half), 2(make other one)",
                       metavar="LEVEL")
     parser.add_option("-s", "--scale",
                       dest="scale",
@@ -410,6 +459,18 @@ def getopt():
                       default=0,
                       help="specify move vector z",
                       metavar="MVZ")
+    parser.add_option("-a", "--rotaxis",
+                      dest="rotaxis",
+                      type="int",
+                      default=0,
+                      help="specify rotation axis: 0(x), 1(y), 2(z)",
+                      metavar="ROTAXIS")
+    parser.add_option("-d", "--rotdegree",
+                      dest="rotdegree",
+                      type="int",
+                      default=0,
+                      help="specify rotation degree: 0(90), 1(-90), 2(180)",
+                      metavar="ROTDEGREE")
     (options, args) = parser.parse_args() #引数パーズ
 
     if options.inputfile == None: 
@@ -433,14 +494,17 @@ if __name__ == "__main__":
     elif mode == 1: # fill mode
         filled = bed3D.fillClosed()
         outstr = filled.printAll()
-    elif mode== 2: # mirror mode
+    elif mode == 2: # mirror mode
         newmodel = bed3D.makeMirrorModel(options.mirrormode)
         outstr = newmodel.printAll()
-    elif mode== 3: # scaling mode
+    elif mode == 3: # scaling mode
         newmodel = bed3D.makeScaledModel(options.scale)
         outstr = newmodel.printAll()
-    elif mode== 4: # move mode
+    elif mode == 4: # move mode
         newmodel = bed3D.makeMovedModel(options.mvx, options.mvy, options.mvz)
+        outstr = newmodel.printAll()
+    elif mode == 5: # rotate mode
+        newmodel = bed3D.makeRotatedModel(options.rotaxis, options.rotdegree)
         outstr = newmodel.printAll()
 
     if options.outputfile: 
