@@ -47,6 +47,9 @@ class BED3D(dict):
             outlist.append(v.getline())
         return "\n".join(outlist)
 
+    def addBoxel(self, b):
+        self[b.getPosTuple()] = b
+
     def getSurrounds(self, x,y,z): 
         top = self.get((x,y-1,z), None)
         bot = self.get((x,y+1,z), None)
@@ -57,9 +60,10 @@ class BED3D(dict):
         return top,bot,lef,rig,fore,back
 
     def updatePosMaxMin(self):
-        xlist = [x for x,y,z in self.keys()]
-        ylist = [y for x,y,z in self.keys()]
-        zlist = [z for x,y,z in self.keys()]
+        xlist,ylist,zlist = zip(*self.keys()) # this is same to below
+        #xlist = [x for x,y,z in self.keys()]
+        #ylist = [y for x,y,z in self.keys()]
+        #zlist = [z for x,y,z in self.keys()]
         self.xmax = max(xlist)
         self.xmin = min(xlist)
         self.ymax = max(ylist)
@@ -68,11 +72,11 @@ class BED3D(dict):
         self.zmin = min(zlist)
 
     def generateListXYis(self, xpos, ypos):
-        return [v for (x,y,z), v in self.items() if x==xpos and y==ypos]
+        return [self.get((xpos,ypos,z), None) for z in range(self.zmin, self.zmax+1)]
     def generateListYZis(self, ypos, zpos):
-        return [v for (x,y,z), v in self.items() if y==ypos and z==zpos]
+        return [self.get((x,ypos,zpos), None) for x in range(self.xmin, self.xmax+1)]
     def generateListZXis(self, zpos, xpos):
-        return [v for (x,y,z), v in self.items() if z==zpos and x==xpos]
+        return [self.get((xpos,y,zpos), None) for y in range(self.ymin, self.ymax+1)]
 
     def updateXYZlist(self):
         self.xlistdic = dict()
@@ -80,34 +84,30 @@ class BED3D(dict):
         self.zlistdic = dict()
         for x in range(self.xmin, self.xmax+1):
             for y in range(self.ymin, self.ymax+1):
-                self.zlistdic[x,y]  = sorted([(e.z, e) for e in self.generateListXYis(x,y)])
+                self.zlistdic[x,y]  = sorted([(e.z, e) for e in self.generateListXYis(x,y) if e])
 
         for z in range(self.zmin, self.zmax+1):
             for x in range(self.xmin, self.xmax+1):
-                self.ylistdic[z,x]  = sorted([(e.y, e) for e in self.generateListZXis(z,x)])
+                self.ylistdic[z,x]  = sorted([(e.y, e) for e in self.generateListZXis(z,x) if e])
 
         for y in range(self.ymin, self.ymax+1):
             for z in range(self.zmin, self.zmax+1):
-                self.xlistdic[y,z]  = sorted([(e.x, e) for e in self.generateListYZis(y,z)])
+                self.xlistdic[y,z]  = sorted([(e.x, e) for e in self.generateListYZis(y,z) if e])
 
-    def getListXYis(self, x, y):
-        return self.zlistdic[x,y]
-    def getListYZis(self, y, z):
-        return self.xlistdic[y,z]
-    def getListZXis(self, z, x):
-        return self.ylistdic[z,x]
+    def getListXYis(self, x, y): return self.zlistdic[x,y]
+    def getListYZis(self, y, z): return self.xlistdic[y,z]
+    def getListZXis(self, z, x): return self.ylistdic[z,x]
 
     #============= out flag based delete decision ==========#
     def checkClosed_base_usingOut(self, value, level, smaller_list, larger_list):
         fand = lambda x,y: x and y
         closed_weak = len(smaller_list) >= level and len(larger_list) >= level
-        smaller_adj_is_in = True
-        larger_adj_is_in = True
         if closed_weak:
             smaller_adj_is_in = reduce(fand, [not smaller_list[-i][1].outflag for i in range(1, level+1)], True)
             larger_adj_is_in = reduce(fand, [not larger_list[i-1][1].outflag for i in range(1, level+1)], True)
-        closed = closed_weak and smaller_adj_is_in and larger_adj_is_in
-        return closed
+            return (smaller_adj_is_in and larger_adj_is_in)
+        else:
+            return False
     def checkClosedX_usingOut(self,x,y,z,  level):
         xlist = self.getListYZis(y,z)
         xlist_roi = [(ex, e) for (ex, e) in xlist if x-level <= ex <= x+level]
@@ -141,7 +141,7 @@ class BED3D(dict):
         newmodel = BED3D()
         for k, b in self.items():
             if not b.outflag:
-                newmodel[k] = b
+                newmodel.addBoxel(b)
         return newmodel
 
     def getFillingOut(self,x,y,z):
@@ -152,7 +152,7 @@ class BED3D(dict):
             if b == None:
                 b = Boxel(x, y, z, FILL_R, FILL_G, FILL_B, FILL_A)
                 b.outflag = True
-                self[(x,y,z)] = b
+                self.addBoxel(b)
             return b
         else:
             return None
@@ -174,12 +174,12 @@ class BED3D(dict):
         self.updatePosMaxMin()
 
         newmodel = BED3D()
-        for k,b in self.items(): newmodel[k] = b
+        for k,b in self.items(): newmodel.addBoxel(b)
 
         # make base position which is absolutely OUT
         n = Boxel(self.xmin-1, self.ymin-1, self.zmin-1,FILL_R, FILL_G, FILL_B, FILL_A)
         n.outflag = True
-        newmodel[n.getPosTuple()] = n
+        newmodel.addBoxel(n)
         newmodel.updatePosMaxMin()
 
         undones = newmodel.getSurroundingUndoneOuts(n)
@@ -198,7 +198,7 @@ class BED3D(dict):
         newmodel = BED3D()
         for (x,y,z), v in outfilled.items():
             if not outfilled.checkClosedPos_usingOut(x,y,z, level):
-                newmodel[(x,y,z)] = v
+                newmodel.addBoxel(v)
         return newmodel
     def delClosed(self, level):
         return self.delClosed_remainingOut(level).cleanOuts()
@@ -213,16 +213,14 @@ class BED3D(dict):
                     #print "check (%d, %d, %d)" % (x,y,z), 
                     v = outfilled.get((x,y,z), None)
                     if v: # exist original (or out) boxel
-                        newmodel[(x,y,z)] = v
+                        newmodel.addBoxel(v)
                     else: # do not exist boxel, so fill there
                         surrounds_rgb = [(e.r, e.g, e.b) for e in self.getSurrounds(x,y,z) if e and not e.outflag]
                         if surrounds_rgb:
                             rlist,glist,blist = zip(*surrounds_rgb)
-                            n = Boxel(x,y,z, ave(rlist), ave(glist), ave(blist), FILL_A)
-                            newmodel[n.getPosTuple()] = n
+                            newmodel.addBoxel(Boxel(x,y,z, ave(rlist), ave(glist), ave(blist), FILL_A))
                         else:
-                            n = Boxel(x,y,z, FILL_R, FILL_G, FILL_B, FILL_A)
-                            newmodel[n.getPosTuple()] = n
+                            newmodel.addBoxel(Boxel(x,y,z, FILL_R, FILL_G, FILL_B, FILL_A))
         return newmodel
 
     def fillClosed(self):
@@ -250,11 +248,11 @@ class BED3D(dict):
         if lr == 0: # delete right
             for (x,y,z), v in self.items():
                 if x <= center:
-                    newmodel[(x,y,z)] = v
+                    newmodel.addBoxel(v)
         else:
             for (x,y,z), v in self.items():
                 if x > center-offset:
-                    newmodel[(x,y,z)] = v
+                    newmodel.addBoxel(v)
         return newmodel, offset
 
     def makeMirror(self, lr, oddflag):
@@ -265,11 +263,11 @@ class BED3D(dict):
         newmodel = BED3D()
         #print "@makeMirror: width = %d, oddflag = %d, xmin = %d, xmax = %d" % (width, oddflag, self.xmin, self.xmax)
         for (x,y,z), v in self.items():
-            newmodel[(x,y,z)] = v
+            newmodel.addBoxel(v)
             diff = x-center
             newx = center-diff+offset if lr==0 else center-diff-offset
             if newx != x:
-                newmodel[(newx,y,z)] = v.genModPosBoxel(newx,y,z)
+                newmodel.addBoxel(v.genModPosBoxel(newx,y,z))
         return newmodel
 
     #==== Scaled model generation ====#
@@ -284,7 +282,7 @@ class BED3D(dict):
             scalex = x * scale
             scaley = y * scale
             scalez = z * scale
-            newmodel[(scalex, scaley, scalez)] = b.genModPosBoxel(scalex, scaley, scalez)
+            newmodel.addBoxel(b.genModPosBoxel(scalex, scaley, scalez))
         return newmodel
     def genScaledBoxels(self, scale):
         newmodel = BED3D()
@@ -292,7 +290,7 @@ class BED3D(dict):
             for newz in  range(z, z+scale):
                 for newy in  range(y, y+scale):
                     for newx in  range(x, x+scale):
-                        newmodel[(newx, newy, newz)] = b.genModPosBoxel(newx, newy, newz)
+                        newmodel.addBoxel(b.genModPosBoxel(newx, newy, newz))
         return newmodel
     def smoothing(self, scale):
         outfilled = self.fillClosed_remainingOut()
@@ -330,19 +328,18 @@ class BED3D(dict):
                     #for sout in surface_outs:
                     #    print "\t\tout (%d, %d, %d)" % (sout.x, sout.y, sout.z)
                     if len(surface_outs) < 3:
-                        newmodel[(s.x, s.y, s.z)] = s
+                        newmodel.addBoxel(s)
                 else:
                     #print ""
                     # boxels surfacing inside always remain
-                    newmodel[(s.x, s.y, s.z)] = s
+                    newmodel.addBoxel(s)
         return newmodel
 
     #==== Scaled model generation ====#
     def makeMovedModel(self, mvx, mvy, mvz):
         newmodel = BED3D()
         for (x,y,z), b in self.items():
-            mb = b.genModPosBoxel(x+mvx, y+mvy, z+mvz)
-            newmodel[mb.getPosTuple()] = mb
+            newmodel.addBoxel(b.genModPosBoxel(x+mvx, y+mvy, z+mvz))
         return newmodel
 
     #==== rotated model generation ====#
@@ -351,8 +348,7 @@ class BED3D(dict):
         for (x,y,z), b in self.items():
             newx, newy, newz = [int(v) for v in rotate3D(x,y,z, xdegree, ydegree, zdegree)]
             #print "rot z90 from (%d, %d, %d) to (%d, %d, %d)" % (x,y,z, newx,newy,newz)
-            mb = b.genModPosBoxel(newx, newy, newz)
-            newmodel[mb.getPosTuple()] = mb
+            newmodel.addBoxel(b.genModPosBoxel(newx, newy, newz))
         return newmodel
 
 class Boxel(object):
