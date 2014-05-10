@@ -11,7 +11,7 @@ date    : 2014/5/10 (last update)
 @aki426 による3Dモデリングソフト be! のセーブファイル（.bed）を読み込み、モデルを修正するスクリプトです。
 
 ## usage
-`python ./bed_mod.py -i [filename.bed] -o [outname.bed] -m [mode] -l [level] -r [mirrormode]`
+`python ./bed_mod.py -i [filename.bed] -o [outname.bed] -m [mode] -l [level] -r [mirrormode] -s [scale]`
 
 ## 引数説明
 
