@@ -335,7 +335,7 @@ class BED3D(dict):
                     newmodel.addBoxel(s)
         return newmodel
 
-    #==== Scaled model generation ====#
+    #==== moved model generation ====#
     def makeMovedModel(self, mvx, mvy, mvz):
         newmodel = BED3D()
         for (x,y,z), b in self.items():
