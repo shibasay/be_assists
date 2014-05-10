@@ -101,30 +101,29 @@ class BED3D(dict):
     #============= out flag based delete decision ==========#
     def checkClosed_base_usingOut(self, value, level, smaller_list, larger_list):
         fand = lambda x,y: x and y
-        closed_weak = len(smaller_list) >= level and len(larger_list) >= level
-        if closed_weak:
-            smaller_adj_is_in = reduce(fand, [not smaller_list[-i][1].outflag for i in range(1, level+1)], True)
-            larger_adj_is_in = reduce(fand, [not larger_list[i-1][1].outflag for i in range(1, level+1)], True)
-            return (smaller_adj_is_in and larger_adj_is_in)
-        else:
-            return False
+        smaller_adj_is_in = len(smaller_list) < level or reduce(fand, [not smaller_list[-i][1].outflag for i in range(1, level+1)], True)
+        larger_adj_is_in = len(larger_list) < level or reduce(fand, [not larger_list[i-1][1].outflag for i in range(1, level+1)], True)
+        return (smaller_adj_is_in and larger_adj_is_in)
     def checkClosedX_usingOut(self,x,y,z,  level):
         xlist = self.getListYZis(y,z)
         xlist_roi = [(ex, e) for (ex, e) in xlist if x-level <= ex <= x+level]
-        xlist_smaller = [(ex, e) for (ex, e) in xlist_roi if ex < x]
-        xlist_larger  = [(ex, e) for (ex, e) in xlist_roi if x < ex]
+        idx = xlist_roi.index((x, self[x,y,z])) # find self
+        xlist_smaller = xlist_roi[:idx]
+        xlist_larger  = xlist_roi[idx+1:]
         return self.checkClosed_base_usingOut(x, level, xlist_smaller, xlist_larger)
     def checkClosedY_usingOut(self,x,y,z, level):
         ylist = self.getListZXis(z,x)
         ylist_roi = [(ey, e) for (ey, e) in ylist if y-level <= ey <= y+level]
-        ylist_smaller = [(ey, e) for (ey, e) in ylist_roi if ey < y]
-        ylist_larger  = [(ey, e) for (ey, e) in ylist_roi if y < ey]
+        idx = ylist_roi.index((y, self[x,y,z])) # find self
+        ylist_smaller = ylist_roi[:idx]
+        ylist_larger  = ylist_roi[idx+1:]
         return self.checkClosed_base_usingOut(y, level, ylist_smaller, ylist_larger)
     def checkClosedZ_usingOut(self,x,y,z, level):
         zlist = self.getListXYis(x,y)
         zlist_roi = [(ez, e) for (ez, e) in zlist if z-level <= ez <= z+level]
-        zlist_smaller = [(ez, e) for (ez, e) in zlist_roi if ez < z]
-        zlist_larger  = [(ez, e) for (ez, e) in zlist_roi if z < ez]
+        idx = zlist_roi.index((z, self[x,y,z])) # find self
+        zlist_smaller = zlist_roi[:idx]
+        zlist_larger  = zlist_roi[idx+1:]
         return self.checkClosed_base_usingOut(z, level, zlist_smaller, zlist_larger)
     def checkClosedPos_usingOut(self,x,y,z, level):
         allclosed = (self.checkClosedX_usingOut(x,y,z, level) and
@@ -194,7 +193,7 @@ class BED3D(dict):
 
     def delClosed_remainingOut(self, level):
         outfilled = self.setOutBoxels()
-        outfilled.updateXYZlist()
+        outfilled.updateXYZlist() # prepare checkClosed
         newmodel = BED3D()
         for (x,y,z), v in outfilled.items():
             if not outfilled.checkClosedPos_usingOut(x,y,z, level):
@@ -297,13 +296,11 @@ class BED3D(dict):
         originals = [((x,y,z), b) for (x,y,z), b in self.items() if x%scale==0 and y%scale==0 and z%scale==0]
         newmodel = BED3D()
         for (x,y,z),b in originals:
-            #print "orignal (%d, %d, %d)" % (x,y,z)
             scales = []
             for zz in  range(z, z+scale):
                 for yy in  range(y, y+scale):
                     for xx in  range(x, x+scale):
                         scales.append(self[(xx,yy,zz)])
-                        #print "append scales = (x,y,z) = (%d, %d, %d)" % (xx, yy, zz)
             surrounds = []
             for zz in  range(z, z+scale):
                 for yy in  range(y, y+scale):
@@ -318,19 +315,14 @@ class BED3D(dict):
                     surrounds.append(outfilled[(xx,y-1,zz)])
                     surrounds.append(outfilled[(xx,y+scale,zz)])
             surrounds_in = [e for e in surrounds if not e.outflag]
-            #print "check scales"
+
             for s in scales:
-                #print "\t(x,y,z) = (%d, %d, %d)" % (s.x, s.y, s.z),
                 if not set(outfilled.getSurrounds(s.x, s.y, s.z)) & set(surrounds_in):
                     # boxels surfacing out is conditionally deleted
                     surface_outs = [e for e in outfilled.getSurrounds(s.x, s.y, s.z) if e.outflag]
-                    #print "surfacing out: out num = ", len(surface_outs)
-                    #for sout in surface_outs:
-                    #    print "\t\tout (%d, %d, %d)" % (sout.x, sout.y, sout.z)
                     if len(surface_outs) < 3:
                         newmodel.addBoxel(s)
                 else:
-                    #print ""
                     # boxels surfacing inside always remain
                     newmodel.addBoxel(s)
         return newmodel
@@ -347,7 +339,6 @@ class BED3D(dict):
         newmodel = BED3D()
         for (x,y,z), b in self.items():
             newx, newy, newz = [int(v) for v in rotate3D(x,y,z, xdegree, ydegree, zdegree)]
-            #print "rot z90 from (%d, %d, %d) to (%d, %d, %d)" % (x,y,z, newx,newy,newz)
             newmodel.addBoxel(b.genModPosBoxel(newx, newy, newz))
         return newmodel
 
@@ -387,7 +378,8 @@ def bed_read(bedfilename):
 
 def getopt():
     version = '%prog 0.1'
-    parser = OptionParser(usage=None, version=version) # usageの %prog はOptionParserによってos.path.basename(sys.argv[0])に置換えられる
+    # usageの %prog はOptionParserによってos.path.basename(sys.argv[0])に置換えられる
+    parser = OptionParser(usage=None, version=version) 
     parser.add_option("-i", "--input",
                       dest="inputfile",
                       help="specify input file name",
