@@ -3,6 +3,7 @@
 #author  : @shibasay 
 #date    : 2014/5/5
 
+import sys
 import re
 from optparse import OptionParser
 
@@ -36,6 +37,7 @@ def rotate3D(x,y,z, xdegree, ydegree, zdegree):
     newx, newz = rotate2D(newx,newz, ydegree)
     newx, newy = rotate2D(newx,newy, zdegree)
     return newx, newy, newz
+def ave(list): return reduce(lambda x,y:x+y, list, 0) / len(list)
 
 class BED3D(dict):
     def printAll(self):
@@ -102,8 +104,6 @@ class BED3D(dict):
         smaller_adj_is_in = True
         larger_adj_is_in = True
         if closed_weak:
-            #smaller_adj_is_in = reduce(fand, [(smaller_list[-i][0] != value-i or smaller_list[-i][1].outflag != True) for i in range(1, level+1)], True)
-            #larger_adj_is_in = reduce(fand, [(larger_list[i-1][0] != value+i or larger_list[i-1][1].outflag != True) for i in range(1, level+1)], True)
             smaller_adj_is_in = reduce(fand, [not smaller_list[-i][1].outflag for i in range(1, level+1)], True)
             larger_adj_is_in = reduce(fand, [not larger_list[i-1][1].outflag for i in range(1, level+1)], True)
         closed = closed_weak and smaller_adj_is_in and larger_adj_is_in
@@ -168,6 +168,7 @@ class BED3D(dict):
         b.doneflag = True
         surrounds = self.getSurroundsFillingOut(b.x, b.y, b.z)
         return [b for b in surrounds if b and b.outflag and not b.doneflag]
+
     def setOutBoxels(self):
         self.initOutFlag()
         self.updatePosMaxMin()
@@ -202,6 +203,7 @@ class BED3D(dict):
     def delClosed(self, level):
         return self.delClosed_remainingOut(level).cleanOuts()
 
+    #==== Fill closed regions with boxels ====#
     def fillClosed_remainingOut(self):
         outfilled = self.setOutBoxels()
         newmodel = BED3D()
@@ -210,15 +212,19 @@ class BED3D(dict):
                 for z in range(outfilled.zmin, outfilled.zmax+1):
                     #print "check (%d, %d, %d)" % (x,y,z), 
                     v = outfilled.get((x,y,z), None)
-                    if v:
+                    if v: # exist original (or out) boxel
                         newmodel[(x,y,z)] = v
-                        #print "exist original data" 
-                    else:
-                        #fillboxel = "%d,%d,%d %d,%d,%d %d" % (x,y,z, FILL_R, FILL_G, FILL_B, FILL_A)
-                        n = Boxel(x,y,z, FILL_R, FILL_G, FILL_B, FILL_A)
-                        newmodel[n.getPosTuple()] = n
-                        #print "fill!" 
+                    else: # do not exist boxel, so fill there
+                        surrounds_rgb = [(e.r, e.g, e.b) for e in self.getSurrounds(x,y,z) if e and not e.outflag]
+                        if surrounds_rgb:
+                            rlist,glist,blist = zip(*surrounds_rgb)
+                            n = Boxel(x,y,z, ave(rlist), ave(glist), ave(blist), FILL_A)
+                            newmodel[n.getPosTuple()] = n
+                        else:
+                            n = Boxel(x,y,z, FILL_R, FILL_G, FILL_B, FILL_A)
+                            newmodel[n.getPosTuple()] = n
         return newmodel
+
     def fillClosed(self):
         return self.fillClosed_remainingOut().cleanOuts()
 
@@ -467,6 +473,11 @@ if __name__ == "__main__":
     options = getopt()
 
     bed3D = bed_read(options.inputfile)
+    bed3D.updatePosMaxMin()
+    sys.stderr.write("model size info:\n")
+    sys.stderr.write("\tmin  (x,y,z) = (%d, %d, %d)\n" % (bed3D.xmin, bed3D.ymin, bed3D.zmin))
+    sys.stderr.write("\tmax  (x,y,z) = (%d, %d, %d)\n" % (bed3D.xmax, bed3D.ymax, bed3D.zmax))
+    sys.stderr.write("\tdiff (x,y,z) = (%d, %d, %d)\n" % (bed3D.xmax-bed3D.xmin, bed3D.ymax-bed3D.ymin, bed3D.zmax-bed3D.zmin))
 
     exedict = {
             0: lambda options: bed3D.delClosed(options.level),
@@ -483,6 +494,5 @@ if __name__ == "__main__":
         with open(options.outputfile, "wt") as of:
             of.write(outstr)
     else:
-        import sys
         sys.stdout.write(outstr)
 
