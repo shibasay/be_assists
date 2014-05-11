@@ -13,11 +13,15 @@ date    : 2014/5/10 (last update)
 ## usage
 `python ./bed_mod.py -i [filename.bed] -o [outname.bed] -m [mode] -l [level] -r [mirrormode] -s [scale] -x [mvx] -y [mvy] -z [mvz] --xdegreee [xdegree] --ydegree [ydegree] --zdegree [zdegree]`
 
+Pythonのバージョンは、Python2系にのみ対応です。Python3系には対応していません。
+
+CPython2.7.3、および PyPy 2.3.0 にて動作確認済み。
+
 ## 引数説明
 
-* [filename.bed]: 入力ファイル名。これはbe!で作ってね
-* [outname.bed] : 出力ファイル名
-* [mode]        : 処理モード 0 or 1
+* [filename.bed]: 入力ファイル名（必須オプション）。これはbe!で作ってね
+* [outname.bed] : 出力ファイル名。指定が無い場合、標準出力にbedデータを出力します。
+* [mode]        : 処理モード（必須オプション）
     * 0 中空モード（hollow）
     * 1 埋めモード（fill）
 	* 2 鏡像モード (mirror)
