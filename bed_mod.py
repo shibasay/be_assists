@@ -543,7 +543,7 @@ if __name__ == "__main__":
             3: lambda options: bed3D.makeScaledModel(options.scale),
             4: lambda options: bed3D.makeMovedModel(options.mvx, options.mvy, options.mvz),
             5: lambda options: bed3D.makeRotatedModel(options.xdegree, options.ydegree, options.zdegree),
-            6: lambda options: bed3D.makeSlimModel(options.axis, options.pos)
+            6: lambda options: bed3D.makeSlimModel(options.axis, options.pos),
             7: lambda options: bed3D.makeFatModel(options.axis, options.pos),
             }
     newmodel = exedict[options.mode](options)
