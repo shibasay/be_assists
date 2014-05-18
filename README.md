@@ -3,7 +3,7 @@
 
 author  : @shibasay 
 
-date    : 2014/5/10 (last update)
+date    : 2014/5/18 (last update)
 
 ---
 
@@ -11,7 +11,16 @@ date    : 2014/5/10 (last update)
 @aki426 による3Dモデリングソフト be! のセーブファイル（.bed）を読み込み、モデルを修正するスクリプトです。
 
 ## usage
-`python ./bed_mod.py -i [filename.bed] -o [outname.bed] -m [mode] -l [level] -r [mirrormode] -s [scale] -x [mvx] -y [mvy] -z [mvz] --xdegreee [xdegree] --ydegree [ydegree] --zdegree [zdegree]`
+
+
+    python ./bed_mod.py -i [filename.bed] -o [outname.bed] 
+                        -m [mode] 
+                        -l [level] 
+                        -r [mirrormode] 
+                        -s [scale] 
+                        -x [mvx] -y [mvy] -z [mvz] 
+                        --xdegreee [xdegree] --ydegree [ydegree] --zdegree [zdegree] 
+                        -a [axis] -p [pos]
 
 Pythonのバージョンは、Python2系にのみ対応です。Python3系には対応していません。
 
@@ -28,7 +37,10 @@ CPython2.7.3、および PyPy 2.3.0 にて動作確認済み。
     * 3 スケールモード (scale)
     * 4 平行移動モード (move)
     * 5 回転モード (rotate)
-    * デフォルト値は 0
+    * 6 スリム化モード (slim)
+    * 7 ファット化モード (fat)
+    * 9999 モデル情報コンソール出力モード
+    * デフォルト値は 9999
 * [level]       : 中空にするレベル。mode 0 の場合にのみ使用。
      * 0 何も消えません。
      * 1 線接触
@@ -48,6 +60,8 @@ CPython2.7.3、および PyPy 2.3.0 にて動作確認済み。
 * [xdegree] [ydegree] [zdegree]: X/Y/Z軸まわりの回転量
      * デフォルト値は 0
      * 整数で、度数（0度、90度など）で指定
+* [axis]: スリム化／ファット化における平面を指定：X/Y/Z
+* [pos]:  スリム化／ファット化における平面の座標位置を指定
 
 ## アルゴリズム詳細（へぼい）
 ### 中空モード
@@ -87,4 +101,11 @@ CPython2.7.3、および PyPy 2.3.0 にて動作確認済み。
 回転行列を用いて実装。x/y/z軸周りの回転量をそれぞれ指定できます。
 ただし最後の浮動小数点→整数変換の扱いをまじめにしていないため、90の倍数以外の度数に対してはボクセル抜けが発生したりします。
 あらかじめご了承ください。
+
+### スリム化モード
+ある平面上のボクセルを消すことで、スリムなモデルにします。
+
+### ファット化モード
+ある平面上のボクセル群をまるごと複製し、太ましいモデルにします。
+
 

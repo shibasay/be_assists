@@ -342,6 +342,55 @@ class BED3D(dict):
             newmodel.addBoxel(b.genModPosBoxel(newx, newy, newz))
         return newmodel
 
+    #==== slim/fat model generation ====#
+    def makeSplitModels(self, axis, pos):
+        # axis = 0:x, 1:y, 2:z
+        newmodel1 = BED3D()
+        newmodel2 = BED3D()
+        newmodel3 = BED3D()
+        for (x,y,z), b in self.items():
+            if axis == 0:
+                if x <  pos: newmodel1.addBoxel(b.genModPosBoxel(x, y, z))
+                if x == pos: newmodel2.addBoxel(b.genModPosBoxel(x, y, z))
+                if x >  pos: newmodel3.addBoxel(b.genModPosBoxel(x, y, z))
+            elif axis == 1:
+                if y <  pos: newmodel1.addBoxel(b.genModPosBoxel(x, y, z))
+                if y == pos: newmodel2.addBoxel(b.genModPosBoxel(x, y, z))
+                if y >  pos: newmodel3.addBoxel(b.genModPosBoxel(x, y, z))
+            elif axis == 2:
+                if z <  pos: newmodel1.addBoxel(b.genModPosBoxel(x, y, z))
+                if z == pos: newmodel2.addBoxel(b.genModPosBoxel(x, y, z))
+                if z >  pos: newmodel3.addBoxel(b.genModPosBoxel(x, y, z))
+            else:
+                raise "unsupported value for axis: %d" % axis
+        return newmodel1, newmodel2, newmodel3
+    def makeJoinedModel(self, another):
+        # just generate a new model by joining two models without any position modification
+        newmodel = BED3D()
+        for (x,y,z), b in self.items():
+            newmodel.addBoxel(b.genModPosBoxel(x,y,z))
+        for (x,y,z), b in another.items():
+            newmodel.addBoxel(b.genModPosBoxel(x,y,z))
+        return newmodel
+    def makeSlimModel(self, axis, pos):
+        # delete 1 plane specified by using axis and pos
+        m1, m2, m3 = self.makeSplitModels(axis, pos)
+        if   axis == 0: (mvx, mvy, mvz) = (-1,  0,  0)
+        elif axis == 1: (mvx, mvy, mvz) = ( 0, -1,  0)
+        elif axis == 2: (mvx, mvy, mvz) = ( 0,  0, -1)
+        else: raise "unsupported value for axis: %d" % axis
+        return m1.makeJoinedModel(m3.makeMovedModel(mvx,mvy,mvz))
+    def makeFatModel(self, axis, pos):
+        # duplicate 1 plane specified by using axis and pos
+        m1, m2, m3 = self.makeSplitModels(axis, pos)
+        if   axis == 0: (mvx, mvy, mvz) = ( 1,  0,  0)
+        elif axis == 1: (mvx, mvy, mvz) = ( 0,  1,  0)
+        elif axis == 2: (mvx, mvy, mvz) = ( 0,  0,  1)
+        else: raise "unsupported value for axis: %d" % axis
+        m2a = m2.makeMovedModel(mvx,mvy,mvz)
+        m3a = m3.makeMovedModel(mvx,mvy,mvz)
+        return m1.makeJoinedModel(m2).makeJoinedModel(m2a).makeJoinedModel(m3a)
+
 class Boxel(object):
     def __init__(self, x,y,z, r,g,b, alpha):
         self.x = int(x)
@@ -391,27 +440,31 @@ def getopt():
     parser.add_option("-m", "--mode",
                       dest="mode",
                       type="int",
-                      default=0,
-                      help="specify processing mode: 0(hollow), 1(fill), 2(mirror), 3(scale), 4(move), 5(rotate)",
+                      default=9999,
+                      help="specify processing mode: 0(hollow), 1(fill), 2(mirror), 3(scale), 4(move), 5(rotate), 6(slim), 7(fat), 9999(info)",
                       metavar="MODE")
+    # options for hollowing
     parser.add_option("-l", "--level",
                       dest="level",
                       type="int",
                       default=1,
                       help="specify level for hollowing mode: should be greater than or equal to 0",
                       metavar="LEVEL")
+    # options for mirror generation
     parser.add_option("-r", "--mirrormode",
                       dest="mirrormode",
                       type="int",
                       default=0,
                       help="specify mirrormode: 0(use left half), 1(use right half), 2(make other one)",
                       metavar="LEVEL")
+    # options for scaling
     parser.add_option("-s", "--scale",
                       dest="scale",
                       type="int",
                       default=1,
                       help="specify scaling factor integer",
                       metavar="SCALE")
+    # options for move
     parser.add_option("-x", "--mvx",
                       dest="mvx",
                       type="int",
@@ -430,6 +483,7 @@ def getopt():
                       default=0,
                       help="specify move vector z",
                       metavar="MVZ")
+    # options for rotation
     parser.add_option("--xdegree",
                       dest="xdegree",
                       type="int",
@@ -448,6 +502,19 @@ def getopt():
                       default=0,
                       help="specify rotation degree on axis z",
                       metavar="ZDEGREE")
+    # options for slim/fat generation
+    parser.add_option("-a", "--axis",
+                      dest="axis",
+                      type="int",
+                      default=0,
+                      help="specify axis for slim/fat plane: 0(x), 1(y), 2(z)",
+                      metavar="AXIS")
+    parser.add_option("-p", "--p",
+                      dest="pos",
+                      type="int",
+                      default=0,
+                      help="specify plane position",
+                      metavar="POS")
     (options, args) = parser.parse_args() #引数パーズ
 
     if options.inputfile == None: 
@@ -463,9 +530,11 @@ if __name__ == "__main__":
     bed3D = bed_read(options.inputfile)
     bed3D.updatePosMaxMin()
     sys.stderr.write("model size info:\n")
-    sys.stderr.write("\tmin  (x,y,z) = (%d, %d, %d)\n" % (bed3D.xmin, bed3D.ymin, bed3D.zmin))
-    sys.stderr.write("\tmax  (x,y,z) = (%d, %d, %d)\n" % (bed3D.xmax, bed3D.ymax, bed3D.zmax))
-    sys.stderr.write("\tdiff (x,y,z) = (%d, %d, %d)\n" % (bed3D.xmax-bed3D.xmin, bed3D.ymax-bed3D.ymin, bed3D.zmax-bed3D.zmin))
+    sys.stderr.write("\tmin  (x,y,z) = ( %3d, %3d, %3d)\n" % (bed3D.xmin, bed3D.ymin, bed3D.zmin))
+    sys.stderr.write("\tmax  (x,y,z) = ( %3d, %3d, %3d)\n" % (bed3D.xmax, bed3D.ymax, bed3D.zmax))
+    sys.stderr.write("\tdiff (x,y,z) = ( %3d, %3d, %3d)\n" % (bed3D.xmax-bed3D.xmin, bed3D.ymax-bed3D.ymin, bed3D.zmax-bed3D.zmin))
+
+    if options.mode == 9999: exit()
 
     exedict = {
             0: lambda options: bed3D.delClosed(options.level),
@@ -473,7 +542,9 @@ if __name__ == "__main__":
             2: lambda options: bed3D.makeMirrorModel(options.mirrormode),
             3: lambda options: bed3D.makeScaledModel(options.scale),
             4: lambda options: bed3D.makeMovedModel(options.mvx, options.mvy, options.mvz),
-            5: lambda options: bed3D.makeRotatedModel(options.xdegree, options.ydegree, options.zdegree)
+            5: lambda options: bed3D.makeRotatedModel(options.xdegree, options.ydegree, options.zdegree),
+            6: lambda options: bed3D.makeSlimModel(options.axis, options.pos)
+            7: lambda options: bed3D.makeFatModel(options.axis, options.pos),
             }
     newmodel = exedict[options.mode](options)
     outstr = newmodel.printAll()
