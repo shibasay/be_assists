@@ -39,6 +39,18 @@ def rotate3D(x,y,z, xdegree, ydegree, zdegree):
 def ave(l): return reduce(lambda x,y:x+y, l, 0) / len(l)
 
 class BED3D(dict):
+    def __init__(self, seq=None, **kwargs):
+        super(BED3D, self).__init__(seq=None, **kwargs)
+        self.xmax = None
+        self.xmin = None
+        self.ymax = None
+        self.ymin = None
+        self.zmax = None
+        self.zmin = None
+        self.xlistdic = None
+        self.ylistdic = None
+        self.zlistdic = None
+
     def printAll(self):
         outlist = [header]
         for v in self.values():
