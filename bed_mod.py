@@ -82,15 +82,15 @@ class BED3D(dict):
         self.zlistdic = dict()
         for x in range(self.xmin, self.xmax+1):
             for y in range(self.ymin, self.ymax+1):
-                self.zlistdic[x,y]  = sorted([(e.z, e) for e in self.generateListXYis(x,y) if e])
+                self.zlistdic[x,y] = sorted([(e.z, e) for e in self.generateListXYis(x,y) if e])
 
         for z in range(self.zmin, self.zmax+1):
             for x in range(self.xmin, self.xmax+1):
-                self.ylistdic[z,x]  = sorted([(e.y, e) for e in self.generateListZXis(z,x) if e])
+                self.ylistdic[z,x] = sorted([(e.y, e) for e in self.generateListZXis(z,x) if e])
 
         for y in range(self.ymin, self.ymax+1):
             for z in range(self.zmin, self.zmax+1):
-                self.xlistdic[y,z]  = sorted([(e.x, e) for e in self.generateListYZis(y,z) if e])
+                self.xlistdic[y,z] = sorted([(e.x, e) for e in self.generateListYZis(y,z) if e])
 
     def getListXYis(self, x, y): return self.zlistdic[x,y]
     def getListYZis(self, y, z): return self.xlistdic[y,z]
@@ -103,7 +103,7 @@ class BED3D(dict):
         larger_adj_is_in = len(larger_list) < level or reduce(fand, [not larger_list[i-1][1].outflag for i in range(1, level+1)], True)
         return (smaller_adj_is_in and larger_adj_is_in)
 
-    def checkClosedX_usingOut(self,x,y,z,  level):
+    def checkClosedX_usingOut(self, x,y,z,  level):
         xlist = self.getListYZis(y,z)
         xlist_roi = [(ex, e) for (ex, e) in xlist if x-level <= ex <= x+level]
         idx = xlist_roi.index((x, self[x,y,z])) # find self
@@ -111,7 +111,7 @@ class BED3D(dict):
         xlist_larger  = xlist_roi[idx+1:]
         return self.checkClosed_base_usingOut(x, level, xlist_smaller, xlist_larger)
 
-    def checkClosedY_usingOut(self,x,y,z, level):
+    def checkClosedY_usingOut(self, x,y,z, level):
         ylist = self.getListZXis(z,x)
         ylist_roi = [(ey, e) for (ey, e) in ylist if y-level <= ey <= y+level]
         idx = ylist_roi.index((y, self[x,y,z])) # find self
@@ -119,7 +119,7 @@ class BED3D(dict):
         ylist_larger  = ylist_roi[idx+1:]
         return self.checkClosed_base_usingOut(y, level, ylist_smaller, ylist_larger)
 
-    def checkClosedZ_usingOut(self,x,y,z, level):
+    def checkClosedZ_usingOut(self, x,y,z, level):
         zlist = self.getListXYis(x,y)
         zlist_roi = [(ez, e) for (ez, e) in zlist if z-level <= ez <= z+level]
         idx = zlist_roi.index((z, self[x,y,z])) # find self
@@ -127,7 +127,7 @@ class BED3D(dict):
         zlist_larger  = zlist_roi[idx+1:]
         return self.checkClosed_base_usingOut(z, level, zlist_smaller, zlist_larger)
 
-    def checkClosedPos_usingOut(self,x,y,z, level):
+    def checkClosedPos_usingOut(self, x,y,z, level):
         allclosed = (self.checkClosedX_usingOut(x,y,z, level) and
                      self.checkClosedY_usingOut(x,y,z, level) and
                      self.checkClosedZ_usingOut(x,y,z, level))
@@ -145,10 +145,11 @@ class BED3D(dict):
                 newmodel.addBoxel(b)
         return newmodel
 
-    def getFillingOut(self,x,y,z):
-        if (self.xmin <= x <= self.xmax+1 and 
-            self.ymin <= y <= self.ymax+1 and
-            self.zmin <= z <= self.zmax+1):
+    def getFillingOut(self, x,y,z):
+        xin = self.xmin <= x <= self.xmax+1
+        yin = self.ymin <= y <= self.ymax+1
+        zin = self.zmin <= z <= self.zmax+1
+        if xin and yin and zin:
             b = self.get((x,y,z), None)
             if b is None:
                 b = Boxel(x, y, z, FILL_R, FILL_G, FILL_B, FILL_A)
@@ -159,12 +160,12 @@ class BED3D(dict):
             return None
 
     def getSurroundsFillingOut(self, x,y,z):
-        top  = self.getFillingOut(x,y+1,z)
-        bot  = self.getFillingOut(x,y-1,z)
-        rig  = self.getFillingOut(x+1,y,z)
-        lef  = self.getFillingOut(x-1,y,z)
-        back = self.getFillingOut(x,y,z+1)
-        fore = self.getFillingOut(x,y,z-1)
+        top  = self.getFillingOut(x  , y+1, z  )
+        bot  = self.getFillingOut(x  , y-1, z  )
+        rig  = self.getFillingOut(x+1, y  , z  )
+        lef  = self.getFillingOut(x-1, y  , z  )
+        back = self.getFillingOut(x  , y  , z+1)
+        fore = self.getFillingOut(x  , y  , z-1)
         return top,bot,lef,rig,fore,back
 
     def getSurroundingUndoneOuts(self,b):
