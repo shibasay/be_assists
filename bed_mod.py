@@ -18,7 +18,6 @@ FILL_A=255
 
 import math
 def rotate2D(x,y, degree):
-    newx, newy = None, None
     theta = math.radians(degree)
     cos = math.cos(theta)
     sin = math.sin(theta)
@@ -148,7 +147,7 @@ class BED3D(dict):
             self.ymin <= y <= self.ymax+1 and
             self.zmin <= z <= self.zmax+1):
             b = self.get((x,y,z), None)
-            if b == None:
+            if b is None:
                 b = Boxel(x, y, z, FILL_R, FILL_G, FILL_B, FILL_A)
                 b.outflag = True
                 self.addBoxel(b)
@@ -515,9 +514,9 @@ def getopt():
                       default=0,
                       help="specify plane position",
                       metavar="POS")
-    (options, args) = parser.parse_args() #引数パーズ
+    (options, args) = parser.parse_args() # 引数パーズ
 
-    if options.inputfile == None: 
+    if options.inputfile is None:
         parser.print_help()
         exit()
     else:
