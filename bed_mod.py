@@ -36,12 +36,11 @@ def rotate3D(x,y,z, xdegree, ydegree, zdegree):
     newx, newz = rotate2D(newx,newz, ydegree)
     newx, newy = rotate2D(newx,newy, zdegree)
     return newx, newy, newz
-def ave(list): return reduce(lambda x,y:x+y, list, 0) / len(list)
+def ave(l): return reduce(lambda x,y:x+y, l, 0) / len(l)
 
 class BED3D(dict):
     def printAll(self):
-        outlist = []
-        outlist.append(header)
+        outlist = [header]
         for v in self.values():
             outlist.append(v.getline())
         return "\n".join(outlist)
@@ -50,12 +49,12 @@ class BED3D(dict):
         self[b.getPosTuple()] = b
 
     def getSurrounds(self, x,y,z): 
-        top = self.get((x,y-1,z), None)
-        bot = self.get((x,y+1,z), None)
-        lef = self.get((x+1,y,z), None)
-        rig = self.get((x-1,y,z), None)
-        fore = self.get((x,y,z+1), None)
-        back = self.get((x,y,z-1), None)
+        top  = self.get((x  ,y-1,z  ), None)
+        bot  = self.get((x  ,y+1,z  ), None)
+        lef  = self.get((x+1,y  ,z  ), None)
+        rig  = self.get((x-1,y  ,z  ), None)
+        fore = self.get((x  ,y  ,z+1), None)
+        back = self.get((x  ,y  ,z-1), None)
         return top,bot,lef,rig,fore,back
 
     def updatePosMaxMin(self):
@@ -103,6 +102,7 @@ class BED3D(dict):
         smaller_adj_is_in = len(smaller_list) < level or reduce(fand, [not smaller_list[-i][1].outflag for i in range(1, level+1)], True)
         larger_adj_is_in = len(larger_list) < level or reduce(fand, [not larger_list[i-1][1].outflag for i in range(1, level+1)], True)
         return (smaller_adj_is_in and larger_adj_is_in)
+
     def checkClosedX_usingOut(self,x,y,z,  level):
         xlist = self.getListYZis(y,z)
         xlist_roi = [(ex, e) for (ex, e) in xlist if x-level <= ex <= x+level]
@@ -110,6 +110,7 @@ class BED3D(dict):
         xlist_smaller = xlist_roi[:idx]
         xlist_larger  = xlist_roi[idx+1:]
         return self.checkClosed_base_usingOut(x, level, xlist_smaller, xlist_larger)
+
     def checkClosedY_usingOut(self,x,y,z, level):
         ylist = self.getListZXis(z,x)
         ylist_roi = [(ey, e) for (ey, e) in ylist if y-level <= ey <= y+level]
@@ -117,6 +118,7 @@ class BED3D(dict):
         ylist_smaller = ylist_roi[:idx]
         ylist_larger  = ylist_roi[idx+1:]
         return self.checkClosed_base_usingOut(y, level, ylist_smaller, ylist_larger)
+
     def checkClosedZ_usingOut(self,x,y,z, level):
         zlist = self.getListXYis(x,y)
         zlist_roi = [(ez, e) for (ez, e) in zlist if z-level <= ez <= z+level]
@@ -124,6 +126,7 @@ class BED3D(dict):
         zlist_smaller = zlist_roi[:idx]
         zlist_larger  = zlist_roi[idx+1:]
         return self.checkClosed_base_usingOut(z, level, zlist_smaller, zlist_larger)
+
     def checkClosedPos_usingOut(self,x,y,z, level):
         allclosed = (self.checkClosedX_usingOut(x,y,z, level) and
                      self.checkClosedY_usingOut(x,y,z, level) and
@@ -154,6 +157,7 @@ class BED3D(dict):
             return b
         else:
             return None
+
     def getSurroundsFillingOut(self, x,y,z):
         top  = self.getFillingOut(x,y+1,z)
         bot  = self.getFillingOut(x,y-1,z)
@@ -162,6 +166,7 @@ class BED3D(dict):
         back = self.getFillingOut(x,y,z+1)
         fore = self.getFillingOut(x,y,z-1)
         return top,bot,lef,rig,fore,back
+
     def getSurroundingUndoneOuts(self,b):
         b.doneflag = True
         surrounds = self.getSurroundsFillingOut(b.x, b.y, b.z)
@@ -198,6 +203,7 @@ class BED3D(dict):
             if not outfilled.checkClosedPos_usingOut(x,y,z, level):
                 newmodel.addBoxel(v)
         return newmodel
+
     def delClosed(self, level):
         return self.delClosed_remainingOut(level).cleanOuts()
 
@@ -274,6 +280,7 @@ class BED3D(dict):
         newmodel = newmodel.genScaledBoxels(scale)
         newmodel = newmodel.smoothing(scale)
         return newmodel
+
     def positionScaledBoxels(self, scale):
         newmodel = BED3D()
         for (x,y,z), b in self.items():
@@ -282,35 +289,37 @@ class BED3D(dict):
             scalez = z * scale
             newmodel.addBoxel(b.genModPosBoxel(scalex, scaley, scalez))
         return newmodel
+
     def genScaledBoxels(self, scale):
         newmodel = BED3D()
         for (x,y,z), b in self.items():
-            for newz in  range(z, z+scale):
-                for newy in  range(y, y+scale):
-                    for newx in  range(x, x+scale):
+            for newz in range(z, z+scale):
+                for newy in range(y, y+scale):
+                    for newx in range(x, x+scale):
                         newmodel.addBoxel(b.genModPosBoxel(newx, newy, newz))
         return newmodel
+
     def smoothing(self, scale):
         outfilled = self.fillClosed_remainingOut()
         originals = [((x,y,z), b) for (x,y,z), b in self.items() if x%scale==0 and y%scale==0 and z%scale==0]
         newmodel = BED3D()
         for (x,y,z),b in originals:
             scales = []
-            for zz in  range(z, z+scale):
-                for yy in  range(y, y+scale):
-                    for xx in  range(x, x+scale):
+            for zz in range(z, z+scale):
+                for yy in range(y, y+scale):
+                    for xx in range(x, x+scale):
                         scales.append(self[(xx,yy,zz)])
             surrounds = []
-            for zz in  range(z, z+scale):
-                for yy in  range(y, y+scale):
+            for zz in range(z, z+scale):
+                for yy in range(y, y+scale):
                     surrounds.append(outfilled[(x-1,yy,zz)])
                     surrounds.append(outfilled[(x+scale,yy,zz)])
-            for yy in  range(y, y+scale):
-                for xx in  range(x, x+scale):
+            for yy in range(y, y+scale):
+                for xx in range(x, x+scale):
                     surrounds.append(outfilled[(xx,yy,z-1)])
                     surrounds.append(outfilled[(xx,yy,z+scale)])
-            for xx in  range(x, x+scale):
-                for zz in  range(z, z+scale):
+            for xx in range(x, x+scale):
+                for zz in range(z, z+scale):
                     surrounds.append(outfilled[(xx,y-1,zz)])
                     surrounds.append(outfilled[(xx,y+scale,zz)])
             surrounds_in = [e for e in surrounds if not e.outflag]
@@ -363,6 +372,7 @@ class BED3D(dict):
             else:
                 raise "unsupported value for axis: %d" % axis
         return newmodel1, newmodel2, newmodel3
+
     def makeJoinedModel(self, another):
         # just generate a new model by joining two models without any position modification
         newmodel = BED3D()
@@ -371,6 +381,7 @@ class BED3D(dict):
         for (x,y,z), b in another.items():
             newmodel.addBoxel(b.genModPosBoxel(x,y,z))
         return newmodel
+
     def makeSlimModel(self, axis, pos):
         # delete 1 plane specified by using axis and pos
         m1, m2, m3 = self.makeSplitModels(axis, pos)
@@ -379,6 +390,7 @@ class BED3D(dict):
         elif axis == 2: (mvx, mvy, mvz) = ( 0,  0, -1)
         else: raise "unsupported value for axis: %d" % axis
         return m1.makeJoinedModel(m3.makeMovedModel(mvx,mvy,mvz))
+
     def makeFatModel(self, axis, pos):
         # duplicate 1 plane specified by using axis and pos
         m1, m2, m3 = self.makeSplitModels(axis, pos)
@@ -404,6 +416,7 @@ class Boxel(object):
 
     def getline(self):
         return "%d %d %d %d %d %d %d" % (self.x,self.y,self.z, self.r, self.g, self.b, self.alpha)
+
     def getPosTuple(self):
         return (self.x, self.y, self.z)
 
@@ -536,15 +549,15 @@ if __name__ == "__main__":
     if options.mode == 9999: exit()
 
     exedict = {
-            0: lambda options: bed3D.delClosed(options.level),
-            1: lambda options: bed3D.fillClosed(),
-            2: lambda options: bed3D.makeMirrorModel(options.mirrormode),
-            3: lambda options: bed3D.makeScaledModel(options.scale),
-            4: lambda options: bed3D.makeMovedModel(options.mvx, options.mvy, options.mvz),
-            5: lambda options: bed3D.makeRotatedModel(options.xdegree, options.ydegree, options.zdegree),
-            6: lambda options: bed3D.makeSlimModel(options.axis, options.pos),
-            7: lambda options: bed3D.makeFatModel(options.axis, options.pos),
-            }
+        0: lambda options: bed3D.delClosed(options.level),
+        1: lambda options: bed3D.fillClosed(),
+        2: lambda options: bed3D.makeMirrorModel(options.mirrormode),
+        3: lambda options: bed3D.makeScaledModel(options.scale),
+        4: lambda options: bed3D.makeMovedModel(options.mvx, options.mvy, options.mvz),
+        5: lambda options: bed3D.makeRotatedModel(options.xdegree, options.ydegree, options.zdegree),
+        6: lambda options: bed3D.makeSlimModel(options.axis, options.pos),
+        7: lambda options: bed3D.makeFatModel(options.axis, options.pos),
+        }
     newmodel = exedict[options.mode](options)
     outstr = newmodel.printAll()
 
