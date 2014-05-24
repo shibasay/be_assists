@@ -9,7 +9,7 @@ from optparse import OptionParser
 
 header=r"""#be! data file
 #(int)x (int)y (int)z (int)r (int)g (int)b (int)a
-#delimiters are space' ', tab'\t', camma',' and colon':'."""
+#delimiters are space' ', tab'\t', comma',' and colon':'."""
 
 FILL_R=255
 FILL_G=255
@@ -40,7 +40,7 @@ def ave(l): return reduce(lambda x,y:x+y, l, 0) / len(l)
 
 class BED3D(dict):
     def __init__(self, seq=None, **kwargs):
-        super(BED3D, self).__init__(seq=None, **kwargs)
+        super(BED3D, self).__init__()
         self.xmax = None
         self.xmin = None
         self.ymax = None
@@ -415,6 +415,35 @@ class BED3D(dict):
         m3a = m3.makeMovedModel(mvx,mvy,mvz)
         return m1.makeJoinedModel(m2).makeJoinedModel(m2a).makeJoinedModel(m3a)
 
+    #==== projected model generation ====#
+    def makeProjectedModels(self, axis, minmaxflag):
+        self.updateXYZlist()
+        newmodel = BED3D()
+        if axis == 0: # project to YZ plane (reduce X axis)
+            for y in range(self.ymin, self.ymax+1):
+                for z in range(self.zmin, self.zmax+1):
+                    l = self.getListYZis(y, z)
+                    if l:
+                        pos, b = min(l) if minmaxflag == 0 else max(l)
+                        newmodel.addBoxel(b.genModPosBoxel(0,y,z))
+        elif axis == 1: # project to XZ plane (reduce Y axis)
+            for z in range(self.zmin, self.zmax+1):
+                for x in range(self.xmin, self.xmax+1):
+                    l = self.getListZXis(z, x)
+                    if l:
+                        pos, b = min(l) if minmaxflag == 0 else max(l)
+                        newmodel.addBoxel(b.genModPosBoxel(x,0,z))
+        elif axis == 2: # project to XY plane (reduce Z axis)
+            for x in range(self.xmin, self.xmax+1):
+                for y in range(self.ymin, self.ymax+1):
+                    l = self.getListXYis(x, y)
+                    if l:
+                        pos, b = min(l) if minmaxflag == 0 else max(l)
+                        newmodel.addBoxel(b.genModPosBoxel(x,y,0))
+        else:
+            raise "unexptected axis %d is provided..." % axis
+        return newmodel
+
 class Boxel(object):
     def __init__(self, x,y,z, r,g,b, alpha):
         self.x = int(x)
@@ -527,12 +556,12 @@ def getopt():
                       default=0,
                       help="specify rotation degree on axis z",
                       metavar="ZDEGREE")
-    # options for slim/fat generation
+    # options for slim/fat generation and projected model generation
     parser.add_option("-a", "--axis",
                       dest="axis",
                       type="int",
                       default=0,
-                      help="specify axis for slim/fat plane: 0(x), 1(y), 2(z)",
+                      help="specify axis for slim/fat plane position: 0(x), 1(y), 2(z)",
                       metavar="AXIS")
     parser.add_option("-p", "--p",
                       dest="pos",
@@ -540,6 +569,13 @@ def getopt():
                       default=0,
                       help="specify plane position",
                       metavar="POS")
+    # options for projected model generation
+    parser.add_option("--minmaxflag",
+                      dest="minmaxflag",
+                      type="int",
+                      default=0,
+                      help="specify projection direction min or max",
+                      metavar="MINMAX")
     (options, args) = parser.parse_args() # 引数パーズ
 
     if options.inputfile is None:
@@ -554,7 +590,7 @@ if __name__ == "__main__":
 
     bed3D = bed_read(options.inputfile)
     bed3D.updatePosMaxMin()
-    sys.stderr.write("model size info:\n")
+    sys.stderr.write("input model size info:\n")
     sys.stderr.write("\tmin  (x,y,z) = ( %3d, %3d, %3d)\n" % (bed3D.xmin, bed3D.ymin, bed3D.zmin))
     sys.stderr.write("\tmax  (x,y,z) = ( %3d, %3d, %3d)\n" % (bed3D.xmax, bed3D.ymax, bed3D.zmax))
     sys.stderr.write("\tdiff (x,y,z) = ( %3d, %3d, %3d)\n" % (bed3D.xmax-bed3D.xmin, bed3D.ymax-bed3D.ymin, bed3D.zmax-bed3D.zmin))
@@ -570,6 +606,7 @@ if __name__ == "__main__":
         5: lambda options: bed3D.makeRotatedModel(options.xdegree, options.ydegree, options.zdegree),
         6: lambda options: bed3D.makeSlimModel(options.axis, options.pos),
         7: lambda options: bed3D.makeFatModel(options.axis, options.pos),
+        8: lambda options: bed3D.makeProjectedModels(options.axis, options.minmaxflag),
         }
     newmodel = exedict[options.mode](options)
     outstr = newmodel.printAll()
