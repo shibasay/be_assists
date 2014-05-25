@@ -2,6 +2,9 @@
 # fileencoding=utf-8
 __author__ = 'shibasay'
 
+# written using copy & pasting and modifying code shown in below URL
+# http://kivy.org/docs/api-kivy.uix.filechooser.html
+
 from kivy.app import App
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.gridlayout import GridLayout
