@@ -5,6 +5,7 @@
 
 import sys
 import re
+import os
 from optparse import OptionParser
 ENV_HAS_PIL=None
 try:
@@ -478,7 +479,7 @@ class BED3D(dict):
         newmodel.setIsPlane(axis)
         return newmodel
 
-    def generatePNG(self, outnamebase):
+    def generatePNG(self, outnamebase, path="."):
         assert self.isPlane, "generatePNG should be called with plane model!"
         img = Image.new("RGBA", (self.planeWidth, self.planeHeight))
         for b in self.values():
@@ -487,7 +488,24 @@ class BED3D(dict):
         axis_str = None
 
         outname = "%s_%s.png" % (outnamebase, axis_str_dic[self.planeAxis])
-        img.save(outname)
+        outpath = os.path.join(path, outname)
+        img.save(outpath)
+        return outpath
+
+    def getPreviewXY_path(self, basename, path):
+        self.updatePosMaxMin()
+        newmodel = self.makeProjectedModels(AXIS_Z, 0)
+        return newmodel.generatePNG(basename, path)
+
+    def getPreviewYZ_path(self, basename, path):
+        self.updatePosMaxMin()
+        newmodel = self.makeProjectedModels(AXIS_X, 0)
+        return newmodel.generatePNG(basename, path)
+
+    def getPreviewZX_path(self, basename, path):
+        self.updatePosMaxMin()
+        newmodel = self.makeProjectedModels(AXIS_Y, 0)
+        return newmodel.generatePNG(basename, path)
 
     def makeFlippedModel(self, axis):
         self.updatePosMaxMin()
