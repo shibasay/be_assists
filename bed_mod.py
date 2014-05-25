@@ -6,6 +6,12 @@
 import sys
 import re
 from optparse import OptionParser
+ENV_HAS_PIL=None
+try:
+    from PIL import Image
+    ENV_HAS_PIL = True
+except ImportError:
+    ENV_HAS_PIL = False
 
 header=r"""#be! data file
 #(int)x (int)y (int)z (int)r (int)g (int)b (int)a
@@ -15,6 +21,12 @@ FILL_R=255
 FILL_G=255
 FILL_B=255
 FILL_A=255
+
+AXIS_X=0
+AXIS_Y=1
+AXIS_Z=2
+
+axis_str_dic = {0: "X", 1: "Y", 2:"Z"}
 
 import math
 def rotate2D(x,y, degree):
@@ -50,12 +62,32 @@ class BED3D(dict):
         self.xlistdic = None
         self.ylistdic = None
         self.zlistdic = None
+        self.isPlane = False
+        self.planeAxis = None # 0(x), 1(y), 2(z), None(not plane)
+        self.planePos  = None
+        self.planeWidth  = None
+        self.planeHeight = None
 
     def printAll(self):
         outlist = [header]
         for v in self.values():
             outlist.append(v.getline())
         return "\n".join(outlist)
+
+    def setIsPlane(self, axis, pos=0):
+        self.isPlane = True
+        self.planeAxis = axis
+        self.planePos = pos
+        self.updatePosMaxMin()
+        if axis == AXIS_X:
+            self.planeWidth  = self.ymax - self.ymin + 1
+            self.planeHeight = self.zmax - self.zmin + 1
+        elif axis == AXIS_Y:
+            self.planeWidth  = self.xmax - self.xmin + 1
+            self.planeHeight = self.zmax - self.zmin + 1
+        elif axis == AXIS_Z:
+            self.planeWidth  = self.xmax - self.xmin + 1
+            self.planeHeight = self.ymax - self.ymin + 1
 
     def addBoxel(self, b):
         self[b.getPosTuple()] = b
@@ -370,20 +402,21 @@ class BED3D(dict):
         newmodel2 = BED3D()
         newmodel3 = BED3D()
         for (x,y,z), b in self.items():
-            if axis == 0:
+            if axis == AXIS_X:
                 if x <  pos: newmodel1.addBoxel(b.genModPosBoxel(x, y, z))
                 if x == pos: newmodel2.addBoxel(b.genModPosBoxel(x, y, z))
                 if x >  pos: newmodel3.addBoxel(b.genModPosBoxel(x, y, z))
-            elif axis == 1:
+            elif axis == AXIS_Y:
                 if y <  pos: newmodel1.addBoxel(b.genModPosBoxel(x, y, z))
                 if y == pos: newmodel2.addBoxel(b.genModPosBoxel(x, y, z))
                 if y >  pos: newmodel3.addBoxel(b.genModPosBoxel(x, y, z))
-            elif axis == 2:
+            elif axis == AXIS_Z:
                 if z <  pos: newmodel1.addBoxel(b.genModPosBoxel(x, y, z))
                 if z == pos: newmodel2.addBoxel(b.genModPosBoxel(x, y, z))
                 if z >  pos: newmodel3.addBoxel(b.genModPosBoxel(x, y, z))
             else:
                 raise "unsupported value for axis: %d" % axis
+        newmodel2.setIsPlane(axis, pos)
         return newmodel1, newmodel2, newmodel3
 
     def makeJoinedModel(self, another):
@@ -398,18 +431,18 @@ class BED3D(dict):
     def makeSlimModel(self, axis, pos):
         # delete 1 plane specified by using axis and pos
         m1, m2, m3 = self.makeSplitModels(axis, pos)
-        if   axis == 0: (mvx, mvy, mvz) = (-1,  0,  0)
-        elif axis == 1: (mvx, mvy, mvz) = ( 0, -1,  0)
-        elif axis == 2: (mvx, mvy, mvz) = ( 0,  0, -1)
+        if   axis == AXIS_X: (mvx, mvy, mvz) = (-1,  0,  0)
+        elif axis == AXIS_Y: (mvx, mvy, mvz) = ( 0, -1,  0)
+        elif axis == AXIS_Z: (mvx, mvy, mvz) = ( 0,  0, -1)
         else: raise "unsupported value for axis: %d" % axis
         return m1.makeJoinedModel(m3.makeMovedModel(mvx,mvy,mvz))
 
     def makeFatModel(self, axis, pos):
         # duplicate 1 plane specified by using axis and pos
         m1, m2, m3 = self.makeSplitModels(axis, pos)
-        if   axis == 0: (mvx, mvy, mvz) = ( 1,  0,  0)
-        elif axis == 1: (mvx, mvy, mvz) = ( 0,  1,  0)
-        elif axis == 2: (mvx, mvy, mvz) = ( 0,  0,  1)
+        if   axis == AXIS_X: (mvx, mvy, mvz) = ( 1,  0,  0)
+        elif axis == AXIS_Y: (mvx, mvy, mvz) = ( 0,  1,  0)
+        elif axis == AXIS_Z: (mvx, mvy, mvz) = ( 0,  0,  1)
         else: raise "unsupported value for axis: %d" % axis
         m2a = m2.makeMovedModel(mvx,mvy,mvz)
         m3a = m3.makeMovedModel(mvx,mvy,mvz)
@@ -419,21 +452,21 @@ class BED3D(dict):
     def makeProjectedModels(self, axis, minmaxflag):
         self.updateXYZlist()
         newmodel = BED3D()
-        if axis == 0: # project to YZ plane (reduce X axis)
+        if axis == AXIS_X: # project to YZ plane (reduce X axis)
             for y in range(self.ymin, self.ymax+1):
                 for z in range(self.zmin, self.zmax+1):
                     l = self.getListYZis(y, z)
                     if l:
                         pos, b = min(l) if minmaxflag == 0 else max(l)
                         newmodel.addBoxel(b.genModPosBoxel(0,y,z))
-        elif axis == 1: # project to XZ plane (reduce Y axis)
+        elif axis == AXIS_Y: # project to XZ plane (reduce Y axis)
             for z in range(self.zmin, self.zmax+1):
                 for x in range(self.xmin, self.xmax+1):
                     l = self.getListZXis(z, x)
                     if l:
                         pos, b = min(l) if minmaxflag == 0 else max(l)
                         newmodel.addBoxel(b.genModPosBoxel(x,0,z))
-        elif axis == 2: # project to XY plane (reduce Z axis)
+        elif axis == AXIS_Z: # project to XY plane (reduce Z axis)
             for x in range(self.xmin, self.xmax+1):
                 for y in range(self.ymin, self.ymax+1):
                     l = self.getListXYis(x, y)
@@ -442,6 +475,28 @@ class BED3D(dict):
                         newmodel.addBoxel(b.genModPosBoxel(x,y,0))
         else:
             raise "unexptected axis %d is provided..." % axis
+        newmodel.setIsPlane(axis)
+        return newmodel
+
+    def generatePNG(self, outnamebase):
+        assert self.isPlane, "generatePNG should be called with plane model!"
+        img = Image.new("RGBA", (self.planeWidth, self.planeHeight))
+        for b in self.values():
+            x,y, r,g,b,a = b.getPlaneData(self.planeAxis, self.xmin, self.ymin, self.zmin)
+            img.putpixel((x,y), (r,g,b,a))
+        axis_str = None
+
+        outname = "%s_%s.png" % (outnamebase, axis_str_dic[self.planeAxis])
+        img.save(outname)
+
+    def makeFlippedModel(self, axis):
+        self.updatePosMaxMin()
+        newmodel = BED3D()
+        for (x,y,z), b in self.items():
+            if   axis == AXIS_X: newx, newy, newz = self.xmax - x, y, z
+            elif axis == AXIS_Y: newx, newy, newz = x, self.ymax - y, z
+            elif axis == AXIS_Z: newx, newy, newz = x, y, self.zmax - z
+            newmodel.addBoxel(b.genModPosBoxel(newx, newy, newz))
         return newmodel
 
 class Boxel(object):
@@ -468,6 +523,11 @@ class Boxel(object):
     def genModPosBoxel(self,x,y,z):
         newbed = Boxel(x, y, z, self.r, self.g, self.b, self.alpha)
         return newbed
+
+    def getPlaneData(self, axis, xmin, ymin, zmin):
+        if   axis == AXIS_X: return self.y-ymin, self.z-zmin, self.r, self.g, self.b, self.alpha
+        elif axis == AXIS_Y: return self.x-xmin, self.z-zmin, self.r, self.g, self.b, self.alpha
+        elif axis == AXIS_Z: return self.x-xmin, self.y-ymin, self.r, self.g, self.b, self.alpha
 
 def bed_read(bedfilename):
     bed3D = BED3D()
@@ -616,4 +676,8 @@ if __name__ == "__main__":
             of.write(outstr)
     else:
         sys.stdout.write(outstr)
+
+    if ENV_HAS_PIL and newmodel.isPlane:
+        outnamebase = options.outputfile[:options.outputfile.rfind(".")]
+        newmodel.generatePNG(outnamebase)
 
