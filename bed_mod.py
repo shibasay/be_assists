@@ -104,7 +104,7 @@ class BED3D(dict):
             self.planeWidth  = self.xmax - self.xmin + 1
             self.planeHeight = self.ymax - self.ymin + 1
 
-    def addBoxel(self, b)
+    def addBoxel(self, b):
         self[b.getPosTuple()] = b
 
     def getSurrounds(self, x,y,z):
