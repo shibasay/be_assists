@@ -479,12 +479,14 @@ class BED3D(dict):
         newmodel.setIsPlane(axis)
         return newmodel
 
-    def generatePNG(self, outnamebase, path="."):
+    def generatePNG(self, outnamebase, voxelsize=1, path="."):
         assert self.isPlane, "generatePNG should be called with plane model!"
-        img = Image.new("RGBA", (self.planeWidth, self.planeHeight))
+        img = Image.new("RGBA", (self.planeWidth*voxelsize, self.planeHeight*voxelsize))
         for b in self.values():
             x,y, r,g,b,a = b.getPlaneData(self.planeAxis, self.xmin, self.ymin, self.zmin)
-            img.putpixel((x,y), (r,g,b,a))
+            for i in range(voxelsize):
+                for j in range(voxelsize):
+                    img.putpixel((x*voxelsize+i,y*voxelsize+j), (r,g,b,a))
         axis_str = None
 
         outname = "%s_%s.png" % (outnamebase, axis_str_dic[self.planeAxis])
@@ -495,17 +497,17 @@ class BED3D(dict):
     def getPreviewXY_path(self, basename, path):
         self.updatePosMaxMin()
         newmodel = self.makeProjectedModels(AXIS_Z, 0)
-        return newmodel.generatePNG(basename, path)
+        return newmodel.generatePNG(basename, 4, path)
 
     def getPreviewYZ_path(self, basename, path):
         self.updatePosMaxMin()
         newmodel = self.makeProjectedModels(AXIS_X, 0)
-        return newmodel.generatePNG(basename, path)
+        return newmodel.generatePNG(basename, 4, path)
 
     def getPreviewZX_path(self, basename, path):
         self.updatePosMaxMin()
         newmodel = self.makeProjectedModels(AXIS_Y, 0)
-        return newmodel.generatePNG(basename, path)
+        return newmodel.generatePNG(basename, 4, path)
 
     def makeFlippedModel(self, axis):
         self.updatePosMaxMin()
