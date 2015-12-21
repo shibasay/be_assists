@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # fileencoding=utf-8
-#author  : @shibasay 
-#date    : 2014/5/5
+#author  : @shibasay
+#date    : 2015/12/22
 
 import sys
 import re
@@ -14,7 +14,16 @@ try:
 except ImportError:
     ENV_HAS_PIL = False
 
+BE_VERSION=0.91
+
 header=r"""#be! data file
+#(int)x (int)y (int)z (int)r (int)g (int)b (int)a
+#delimiters are space' ', tab'\t', comma',' and colon':'."""
+header_new=r"""#be! data file
+#At first,set field size
+#(int)x (int)y (int)z
+%d %d %d
+#Next, set blocks
 #(int)x (int)y (int)z (int)r (int)g (int)b (int)a
 #delimiters are space' ', tab'\t', comma',' and colon':'."""
 
@@ -70,7 +79,12 @@ class BED3D(dict):
         self.planeHeight = None
 
     def printAll(self):
-        outlist = [header]
+        outlist = []
+        if BE_VERSION >= 0.9:
+            self.updatePosMaxMin()
+            outlist.append(header_new % (self.xmax, self.ymax, self.zmax))
+        else:
+            outlist.append(header)
         for v in self.values():
             outlist.append(v.getline())
         return "\n".join(outlist)
@@ -90,10 +104,10 @@ class BED3D(dict):
             self.planeWidth  = self.xmax - self.xmin + 1
             self.planeHeight = self.ymax - self.ymin + 1
 
-    def addBoxel(self, b):
+    def addBoxel(self, b)
         self[b.getPosTuple()] = b
 
-    def getSurrounds(self, x,y,z): 
+    def getSurrounds(self, x,y,z):
         top  = self.get((x  ,y-1,z  ), None)
         bot  = self.get((x  ,y+1,z  ), None)
         lef  = self.get((x+1,y  ,z  ), None)
@@ -260,7 +274,7 @@ class BED3D(dict):
         for x in range(outfilled.xmin, outfilled.xmax+1):
             for y in range(outfilled.ymin, outfilled.ymax+1):
                 for z in range(outfilled.zmin, outfilled.zmax+1):
-                    #print "check (%d, %d, %d)" % (x,y,z), 
+                    #print "check (%d, %d, %d)" % (x,y,z),
                     v = outfilled.get((x,y,z), None)
                     if v: # exist original (or out) boxel
                         newmodel.addBoxel(v)
@@ -562,7 +576,7 @@ def bed_read(bedfilename):
 def getopt():
     version = '%prog 0.1'
     # usageの %prog はOptionParserによってos.path.basename(sys.argv[0])に置換えられる
-    parser = OptionParser(usage=None, version=version) 
+    parser = OptionParser(usage=None, version=version)
     parser.add_option("-i", "--input",
                       dest="inputfile",
                       help="specify input file name",
@@ -691,7 +705,7 @@ if __name__ == "__main__":
     newmodel = exedict[options.mode](options)
     outstr = newmodel.printAll()
 
-    if options.outputfile: 
+    if options.outputfile:
         with open(options.outputfile, "wt") as of:
             of.write(outstr)
     else:
